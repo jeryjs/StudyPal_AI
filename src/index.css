@@ -1,0 +1,38 @@
+/* Basic Reset & Body Styles */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Update default background to match Wellness Dark theme */
+  background-color: #10121A; /* Match wellnessDark.palette.backgroundDefault */
+  color: #E5E7EB; /* Match wellnessDark.palette.textPrimary */
+  overflow: hidden; /* Prevent body scroll */
+}
+
+#root {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  /* Ensure root background is transparent if body handles color */
+  /* background-color: transparent; */
+}
+
+/* Optional: Add scrollbar styling for a cleaner look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent; /* Make track transparent */
+}
+::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2); /* Semi-transparent thumb */
+  border-radius: 10px;
+  border: transparent;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3); /* Slightly more visible on hover */
+}

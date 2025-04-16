@@ -1,14 +1,14 @@
 {
   "name": "study-pal",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "predeploy": "pnpm run build",
+    "predeploy": "set GH_DEPLOY=true && pnpm run build",
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {

@@ -2,10 +2,12 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
+import { baseAppUrl } from "./src/utils/utils.ts";
+
 // https://vite.dev/config/
 export default defineConfig({
 	plugins: [react()],
-	base: "/StudyPal_AI",	// base URL for gh-pages
+	base: baseAppUrl,	// base URL for gh-pages
 	resolve: {
 		alias: {
 			"@components": path.resolve(__dirname, "./src/components"),

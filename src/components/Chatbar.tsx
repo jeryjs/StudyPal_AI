@@ -163,7 +163,7 @@ const Chatbar: React.FC = () => {
                 <Box sx={{
                     position: 'absolute',
                     bottom: theme.spacing(3),
-                    left: '50%', // Center using transform
+                    left: '30%', // Center using transform
                     transform: 'translateX(-50%)', // Center using transform
                     width: 'clamp(350px, 90%, 600px)',
                     maxWidth: '90%',

@@ -189,6 +189,7 @@ const baseThemeOptions: ThemeOptions = {
 
 // --- Theme Definitions ---
 interface AppTheme {
+    id: string;
     name: string;
     palette: {
         mode: PaletteMode;
@@ -211,6 +212,7 @@ interface AppTheme {
 
 // Define the target "Wellness Dark" theme based on image#1
 const wellnessDark: AppTheme = {
+    id: 'wellness-dark',
     name: 'Wellness Dark',
     palette: {
         mode: 'dark',
@@ -234,18 +236,24 @@ const wellnessDark: AppTheme = {
 // Other themes available (keep existing, they will inherit base overrides)
 export const availableThemes: AppTheme[] = [
     wellnessDark,
-    { name: 'Wellness Light', palette: { mode: 'light', primary: '#4a90e2', secondary: '#e53e3e', backgroundDefault: '#F7FAFC', paperBackground: '#FFFFFF', sidebarBackground: '#FFFFFF', contrastText: '#ffffff', divider: 'rgba(0, 0, 0, 0.1)', textPrimary: '#2D3748', textSecondary: '#718096', action: { hover: 'rgba(0, 0, 0, 0.04)', selected: 'rgba(74, 144, 226, 0.1)' } } },
-    { name: 'Bluish Night', palette: { mode: 'dark', primary: '#8ab4f8', secondary: '#80cbc4', backgroundDefault: '#1f2023', paperBackground: '#2a2b2f', sidebarBackground: '#2a2b2f', contrastText: '#1f2023', divider: 'rgba(255, 255, 255, 0.1)', textPrimary: '#e1e1e1', textSecondary: '#a0a0a0', action: { hover: 'rgba(255, 255, 255, 0.06)', selected: 'rgba(138, 180, 248, 0.15)' } } },
-    { name: 'Forest Green', palette: { mode: 'dark', primary: '#81c784', secondary: '#a5d6a7', backgroundDefault: '#1b2e1f', paperBackground: '#2a3c2c', sidebarBackground: '#2a3c2c', contrastText: '#1b2e1f', divider: 'rgba(255, 255, 255, 0.1)', textPrimary: '#e1e1e1', textSecondary: '#a0a0a0', action: { hover: 'rgba(255, 255, 255, 0.06)', selected: 'rgba(129, 199, 132, 0.15)' } } },
-    { name: 'Rose Quartz', palette: { mode: 'light', primary: '#e91e63', secondary: '#f06292', backgroundDefault: '#fdf6f8', paperBackground: '#ffffff', sidebarBackground: '#ffffff', contrastText: '#ffffff', divider: 'rgba(0, 0, 0, 0.08)', textPrimary: '#212121', textSecondary: '#757575', action: { hover: 'rgba(0, 0, 0, 0.04)', selected: 'rgba(233, 30, 99, 0.15)' } } },
-    { name: 'Amethyst', palette: { mode: 'dark', primary: '#ba68c8', secondary: '#ce93d8', backgroundDefault: '#2c1f31', paperBackground: '#3a2d40', sidebarBackground: '#3a2d40', contrastText: '#ffffff', divider: 'rgba(255, 255, 255, 0.1)', textPrimary: '#e1e1e1', textSecondary: '#a0a0a0', action: { hover: 'rgba(255, 255, 255, 0.06)', selected: 'rgba(186, 104, 200, 0.15)' } } }
+    { id: 'wellness-light', name: 'Wellness Light', palette: { mode: 'light', primary: '#4a90e2', secondary: '#e53e3e', backgroundDefault: '#F7FAFC', paperBackground: '#FFFFFF', sidebarBackground: '#FFFFFF', contrastText: '#ffffff', divider: 'rgba(0, 0, 0, 0.1)', textPrimary: '#2D3748', textSecondary: '#718096', action: { hover: 'rgba(0, 0, 0, 0.04)', selected: 'rgba(74, 144, 226, 0.1)' } } },
+    { id: 'forest-green', name: 'Forest Green', palette: { mode: 'dark', primary: '#81c784', secondary: '#a5d6a7', backgroundDefault: '#1b2e1f', paperBackground: '#2a3c2c', sidebarBackground: '#2a3c2c', contrastText: '#1b2e1f', divider: 'rgba(255, 255, 255, 0.1)', textPrimary: '#e1e1e1', textSecondary: '#a0a0a0', action: { hover: 'rgba(255, 255, 255, 0.06)', selected: 'rgba(129, 199, 132, 0.15)' } } },
+    { id: 'rose-quarz', name: 'Rose Quartz', palette: { mode: 'light', primary: '#e91e63', secondary: '#f06292', backgroundDefault: '#fdf6f8', paperBackground: '#ffffff', sidebarBackground: '#ffffff', contrastText: '#ffffff', divider: 'rgba(0, 0, 0, 0.08)', textPrimary: '#212121', textSecondary: '#757575', action: { hover: 'rgba(0, 0, 0, 0.04)', selected: 'rgba(233, 30, 99, 0.15)' } } },
+    { id: 'amethyst', name: 'Amethyst', palette: { mode: 'dark', primary: '#ba68c8', secondary: '#ce93d8', backgroundDefault: '#2c1f31', paperBackground: '#3a2d40', sidebarBackground: '#3a2d40', contrastText: '#ffffff', divider: 'rgba(255, 255, 255, 0.1)', textPrimary: '#e1e1e1', textSecondary: '#a0a0a0', action: { hover: 'rgba(255, 255, 255, 0.06)', selected: 'rgba(186, 104, 200, 0.15)' } } },
+    { id: 'desert-mirage', name: 'Desert Mirage', palette: { mode: 'light', primary: '#C04000', secondary: '#A68DAD', backgroundDefault: '#FCF5E5', paperBackground: '#FFFFFF', sidebarBackground: '#FFFFFF', contrastText: '#ffffff', divider: 'rgba(0, 0, 0, 0.1)', textPrimary: '#6F4E37', textSecondary: '#A0522D', action: { hover: 'rgba(0, 0, 0, 0.04)', selected: 'rgba(192, 64, 0, 0.15)' } } },
+    { id: 'midnight-bloom', name: 'Midnight Bloom', palette: { mode: 'dark', primary: '#8e9aaf', secondary: '#c6a492', backgroundDefault: '#1e1e2f', paperBackground: '#2c2c3f', sidebarBackground: '#2c2c3f', contrastText: '#ffffff', divider: 'rgba(255, 255, 255, 0.1)', textPrimary: '#e0e0e0', textSecondary: '#a0a0a0', action: { hover: 'rgba(255, 255, 255, 0.06)', selected: 'rgba(142, 154, 175, 0.15)' } } },
+    { id: 'solar-flare', name: 'Solar Flare', palette: { mode: 'light', primary: '#ff8f00', secondary: '#ffb300', backgroundDefault: '#fff3e0', paperBackground: '#ffffff', sidebarBackground: '#ffffff', contrastText: '#ffffff', divider: 'rgba(0, 0, 0, 0.1)', textPrimary: '#212121', textSecondary: '#757575', action: { hover: 'rgba(0, 0, 0, 0.04)', selected: 'rgba(255, 143, 0, 0.15)' } } },
+    { id: 'ocean-depths', name: 'Ocean Depths', palette: { mode: 'dark', primary: '#26A69A', secondary: '#80CBC4', backgroundDefault: '#001F3F', paperBackground: '#003366', sidebarBackground: '#003366', contrastText: '#ffffff', divider: 'rgba(255, 255, 255, 0.1)', textPrimary: '#E0F7FA', textSecondary: '#B2DFDB', action: { hover: 'rgba(255, 255, 255, 0.06)', selected: 'rgba(38, 166, 154, 0.15)' } } },
+    { id: 'citrus-breeze', name: 'Citrus Breeze', palette: { mode: 'light', primary: '#FFCA28', secondary: '#FFA726', backgroundDefault: '#FFFDE7', paperBackground: '#FFFFFF', sidebarBackground: '#FFFFFF', contrastText: '#212121', divider: 'rgba(0, 0, 0, 0.1)', textPrimary: '#616161', textSecondary: '#9E9E9E', action: { hover: 'rgba(0, 0, 0, 0.04)', selected: 'rgba(255, 202, 40, 0.15)' } } },
+    { id: 'twilight-serenity', name: 'Twilight Serenity', palette: { mode: 'dark', primary: '#7986CB', secondary: '#9FA8DA', backgroundDefault: '#303030', paperBackground: '#424242', sidebarBackground: '#424242', contrastText: '#ffffff', divider: 'rgba(255, 255, 255, 0.1)', textPrimary: '#E0E0E0', textSecondary: '#BDBDBD', action: { hover: 'rgba(255, 255, 255, 0.06)', selected: 'rgba(121, 134, 203, 0.15)' } } },
+    { id: 'teal-tranquility', name: 'Teal Tranquility', palette: { mode: 'light', primary: '#00897B', primaryDark: '#00695C', secondary: '#FF5722', backgroundDefault: '#E0F2F1', paperBackground: '#F5FCFB', sidebarBackground: '#EDF8F7', contrastText: '#FFFFFF', divider: 'rgba(0, 77, 64, 0.12)', textPrimary: '#004D40', textSecondary: '#00796B', action: { hover: 'rgba(0, 137, 123, 0.08)', selected: 'rgba(0, 137, 123, 0.16)' } } },
 ];
 
 // --- Theme Context ---
 interface ThemeContextProps {
     theme: Theme;
-    setThemeByName: (name: string) => void;
-    currentThemeName: string;
+    setTheme: (id: string) => void;
+    currentThemeID: string;
 }
 
 const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
@@ -380,25 +388,25 @@ const generateMuiTheme = (appTheme: AppTheme): Theme => {
 // --- Context Provider ---
 export const ThemeContextProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     // Default to Wellness Dark
-    const [currentThemeName, setCurrentThemeName] = useState<string>(wellnessDark.name);
+    const [currentThemeID, setCurrentThemeName] = useState<string>(wellnessDark.id);
     const [isLoading, setIsLoading] = useState(true);
 
     // Ensure isLoading state correctly uses the default background
-    const initialBgColor = (availableThemes.find(async t => t.name === await getThemeSetting()) || wellnessDark).palette.backgroundDefault;
+    const initialBgColor = (availableThemes.find(async t => t.id === await getThemeSetting()) || wellnessDark).palette.backgroundDefault;
 
     useEffect(() => {
         let isMounted = true;
-        getThemeSetting().then(async (savedThemeName) => {
+        getThemeSetting().then(async (savedThemeId) => {
             if (isMounted) {
                 // Ensure the saved theme exists in our current list
-                const themeExists = availableThemes.find(t => t.name === savedThemeName);
-                if (savedThemeName && themeExists) {
-                    setCurrentThemeName(savedThemeName);
-                } else if (!themeExists && savedThemeName) {
+                const themeExists = availableThemes.find(t => t.id === savedThemeId);
+                if (savedThemeId && themeExists) {
+                    setCurrentThemeName(savedThemeId);
+                } else if (!themeExists && savedThemeId) {
                     // If saved theme is invalid, default to Wellness Dark and save it
-                    console.warn(`Saved theme "${savedThemeName}" not found. Defaulting to ${wellnessDark.name}.`);
-                    setCurrentThemeName(wellnessDark.name);
-                    setThemeSetting(wellnessDark.name);
+                    console.warn(`Saved theme "${savedThemeId}" not found. Defaulting to ${wellnessDark.id}.`);
+                    setCurrentThemeName(wellnessDark.id);
+                    setThemeSetting(wellnessDark.id);
                 }
                 // If no saved theme, it already defaults to Wellness Dark
                 setIsLoading(false);
@@ -410,22 +418,22 @@ export const ThemeContextProvider: React.FC<{ children: ReactNode }> = ({ childr
         return () => { isMounted = false; };
     }, []);
 
-    const setThemeByName = (name: string) => {
-        const themeExists = availableThemes.find(t => t.name === name);
+    const setTheme = (id: string) => {
+        const themeExists = availableThemes.find(t => t.id === id);
         if (themeExists) {
-            setCurrentThemeName(name);
-            setThemeSetting(name).catch(error => {
+            setCurrentThemeName(id);
+            setThemeSetting(id).catch(error => {
                 console.error("Error saving theme setting:", error);
             });
         } else {
-            console.warn(`Theme "${name}" not found.`);
+            console.warn(`Theme "${id}" not found.`);
         }
     };
 
     const theme = useMemo(() => {
-        const currentAppTheme = availableThemes.find(t => t.name === currentThemeName) || wellnessDark; // Fallback to wellnessDark
+        const currentAppTheme = availableThemes.find(t => t.id === currentThemeID) || wellnessDark; // Fallback to wellnessDark
         return generateMuiTheme(currentAppTheme);
-    }, [currentThemeName]);
+    }, [currentThemeID]);
 
     if (isLoading) {
         // Use the determined initial background color
@@ -433,7 +441,7 @@ export const ThemeContextProvider: React.FC<{ children: ReactNode }> = ({ childr
     }
 
     return (
-        <ThemeContext.Provider value={{ theme, setThemeByName, currentThemeName }}>
+        <ThemeContext.Provider value={{ theme, setTheme, currentThemeID }}>
             <MuiThemeProvider theme={theme}>
                 {children}
             </MuiThemeProvider>

@@ -1,9 +1,9 @@
 import React from 'react';
-import { Box, Typography, Paper, Grid, Card, CardActionArea, CardContent, Button, alpha } from '@mui/material';
+import { Box, Typography, Paper, Grid, Card, CardActionArea, CardContent, Button, alpha, Theme } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { availableThemes, useThemeContext } from '@contexts/ThemeContext';
 
-const Section = ({ title, subTitle, children, theme }: { title: string; subTitle: string; children: React.ReactNode; theme: any }) => {
+const Section = ({ title, subTitle, children, theme }: { title: string; subTitle: string; children: React.ReactNode; theme: Theme }) => {
   return (
     <Paper sx={{ p: { xs: 2, md: 3 }, mb: 4, backgroundColor: theme.palette.background.paper, borderRadius: theme.shape.borderRadius }}>
       <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
@@ -18,10 +18,10 @@ const Section = ({ title, subTitle, children, theme }: { title: string; subTitle
 };
 
 const SettingsPage: React.FC = () => {
-  const { theme, setThemeByName, currentThemeName } = useThemeContext(); // Get theme object
+  const { theme, setTheme: setTheme, currentThemeID: currentThemeID } = useThemeContext(); // Get theme object
 
-  const handleThemeSelect = (themeName: string) => {
-    setThemeByName(themeName);
+  const handleThemeSelect = (id: string) => {
+    setTheme(id);
   };
 
   const handleCreateTheme = () => {
@@ -39,7 +39,7 @@ const SettingsPage: React.FC = () => {
       <Section title='Appearance' subTitle='Choose a theme that fits your style.' theme={theme}>
         <Grid container spacing={3} sx={{ mb: 4 }}>
           {availableThemes.map((appTheme) => {
-            const isSelected = currentThemeName === appTheme.name;
+            const isSelected = currentThemeID === appTheme.name;
             return (
               // Use Grid's size prop correctly
               <Grid key={appTheme.name} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
@@ -64,7 +64,7 @@ const SettingsPage: React.FC = () => {
                         borderRadius: '50%',
                     }}/>
                   )}
-                  <CardActionArea onClick={() => handleThemeSelect(appTheme.name)} sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                  <CardActionArea onClick={() => handleThemeSelect(appTheme.id)} sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
                     {/* Theme Color Preview */}
                     <Box sx={{ height: 90, display: 'flex', width: '100%' }}>
                       {[appTheme.palette.primary, appTheme.palette.backgroundDefault, appTheme.palette.paperBackground].map((color, index) => (

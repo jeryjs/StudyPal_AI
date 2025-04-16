@@ -1,21 +1,21 @@
+import { Box, CSSObject, Divider, Drawer, IconButton, List, ListItem, ListItemButton, ListItemIcon, ListItemText, styled, Theme, Tooltip, Typography, useTheme } from '@mui/material';
 import React from 'react';
-import { Box, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Divider, Drawer, IconButton, useTheme, styled, Theme, CSSObject, Typography, Avatar } from '@mui/material';
 import { Link, useLocation } from 'react-router';
 
-// Import specific icons from image #1
-import GridViewRoundedIcon from '@mui/icons-material/GridViewRounded'; // Dashboard
-import CalendarTodayRoundedIcon from '@mui/icons-material/CalendarTodayRounded'; // Appointments
-import TimelineRoundedIcon from '@mui/icons-material/TimelineRounded'; // Activity
+// Import Icons
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded'; // Statistics
+import CalendarTodayRoundedIcon from '@mui/icons-material/CalendarTodayRounded'; // Appointments
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import GridViewRoundedIcon from '@mui/icons-material/GridViewRounded'; // Dashboard
 import MailOutlineRoundedIcon from '@mui/icons-material/MailOutlineRounded'; // Messages
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'; // Settings
+import TimelineRoundedIcon from '@mui/icons-material/TimelineRounded'; // Activity
 
 // --- Sidebar Props ---
 interface SidebarProps {
   variant: 'permanent' | 'persistent' | 'temporary';
   open: boolean; // Controls temporary visibility and persistent state
-  isCollapsed: boolean; // Only relevant for persistent variant visual state
-  onClose?: () => void; // For temporary drawer
   onToggle: () => void; // For persistent drawer (if toggle exists)
   width: number;
   collapsedWidth: number;
@@ -30,7 +30,7 @@ const openedMixin = (theme: Theme, width: number): CSSObject => ({
   }),
   overflowX: 'hidden',
   // Background is set directly on paper in ThemeContext
-  borderRight: 'none', // Remove border
+  borderRight: 'none',
 });
 
 const closedMixin = (theme: Theme, collapsedWidth: number): CSSObject => ({
@@ -40,7 +40,7 @@ const closedMixin = (theme: Theme, collapsedWidth: number): CSSObject => ({
   }),
   overflowX: 'hidden',
   width: collapsedWidth,
-  borderRight: 'none', // Remove border
+  borderRight: 'none',
   // Background is set directly on paper in ThemeContext
   [theme.breakpoints.up('sm')]: { // Ensure collapsed width on larger screens if needed
     width: collapsedWidth,
@@ -74,24 +74,16 @@ const StyledDrawer = styled(Drawer, {
 // --- Sidebar Header (Logo/Title) ---
 const DrawerHeader = styled('div')(({ theme }) => ({
   display: 'flex',
-  flexDirection: 'column', // Changed to column
-  alignItems: 'center',
-  justifyContent: 'center', // Center logo/title
-  padding: theme.spacing(3, 1), // Adjust padding
-  marginBottom: theme.spacing(1),
-  // Use theme toolbar mixin if AppBar is present and needs spacing
-  // ...theme.mixins.toolbar,
+  justifyContent: 'space-between', // Distribute space for toggle button
+  paddingInline: theme.spacing(2), // Adjusted padding
+  marginBlock: theme.spacing(2),
+  ...theme.mixins.toolbar, // Ensure proper spacing with AppBar
 }));
 
 const LogoContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'center',
   paddingBlock: theme.spacing(1.5),
-  borderRadius: theme.shape.borderRadius,
-  backgroundColor: 'rgba(255, 255, 255, 0.1)', // Glassmorphism background
-  backdropFilter: 'blur(10px)', // Glassmorphism blur
-  border: '1px solid rgba(255, 255, 255, 0.2)', // Glassmorphism border
   width: '100%', // Full width
 }));
 
@@ -109,53 +101,71 @@ const secondaryNavItems = [
 ];
 
 // --- Sidebar Component ---
-const Sidebar: React.FC<SidebarProps> = ({ variant, open, isCollapsed, onClose, onToggle, width, collapsedWidth }) => {
+const Sidebar: React.FC<SidebarProps> = ({ variant, open, onToggle, width, collapsedWidth }) => {
   const theme = useTheme();
   const location = useLocation();
   // Determine if the drawer should visually appear open (expanded)
-  const isOpen = variant === 'temporary' ? open : !isCollapsed;
+  const isOpen = variant === 'temporary' ? open : open;
 
   const drawerContent = (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '100%', overflow: 'hidden' }}>
       <DrawerHeader>
         <LogoContainer>
           {/* Simple Logo/Title - Replace with actual logo if available */}
-          <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700, display: 'block', color: 'white' }}>
-            <span style={{ color: 'inherit' }}>Study</span><span style={{ color: theme.palette.primary.main }}>Pal</span>
+          <Typography variant="h5" noWrap component="div" sx={{ fontWeight: 700, color: theme.palette.text.primary, display: 'block' }}>
+            {isOpen
+              ? <>Study<span style={{ color: theme.palette.primary.main }}>Pal</span></>
+              : <>S<span style={{ color: theme.palette.primary.main }}>P</span></>}
           </Typography>
-          {/* Placeholder for collapsed logo */}
-          {/* {!isOpen && (
-            <Avatar sx={{ bgcolor: theme.palette.primary.main, width: 32, height: 32, fontSize: '1rem' }}>SP</Avatar>
-          )} */}
         </LogoContainer>
-        {/* NOTE: Removed toggle button based on image #1 */}
+        <IconButton onClick={onToggle}>
+          {isOpen ? <ChevronLeftIcon /> : <ChevronRightIcon />}
+        </IconButton>
       </DrawerHeader>
       <Divider sx={{ borderColor: theme.palette.divider, opacity: 0.5, mx: 2, my: 1 }} />
 
       {/* Main Navigation */}
-      <List sx={{ px: isOpen ? 1 : 0.5, flexGrow: 1 }}> {/* Allow list to grow */}
+      <List sx={{ px: isOpen ? 2 : 0.5, flexGrow: 1 }}> {/* Allow list to grow */}
         {mainNavItems.map((item) => (
           <ListItem key={item.text} disablePadding sx={{ display: 'block' }}>
-            <ListItemButton
-              component={Link}
-              to={item.path}
-              selected={location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path))} // Better path matching
-              sx={{
-                minHeight: 48,
-                justifyContent: isOpen ? 'initial' : 'center',
-                px: 2.5,
-              }}
-            >
-              <ListItemIcon sx={{
-                minWidth: 0,
-                mr: isOpen ? 2 : 'auto',
-                justifyContent: 'center',
-                ml: isOpen ? 0 : 0.5,
-              }}>
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText primary={item.text} sx={{ opacity: isOpen ? 1 : 0, '& .MuiTypography-root': { fontSize: '0.9rem', fontWeight: 500 } }} />
-            </ListItemButton>
+            <Tooltip title={!isOpen ? item.text : ''} placement="right">
+              <ListItemButton
+                component={Link}
+                to={item.path}
+                selected={location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path))} // Better path matching
+                sx={{
+                  minHeight: 64, // Increased height
+                  justifyContent: isOpen ? 'initial' : 'center',
+                  px: 3, // Increased padding
+                  ...(location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path)) ? {
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      left: 0,
+                      top: '50%',
+                      bottom: '50%',
+                      transform: 'translateY(-50%)',
+                      width: 3,
+                      height: '60%',
+                      borderRadius: '0 8px 8px 0',
+                      backgroundColor: theme.palette.primary.main,
+                    },
+                    backgroundColor: theme.palette.action.hover,
+                  } : {}),
+                }}
+              >
+                <ListItemIcon sx={{
+                  minWidth: 0,
+                  mr: isOpen ? 3 : 'auto', // Increased spacing
+                  justifyContent: 'center',
+                  ml: isOpen ? 0 : 0.5,
+                  fontSize: '2rem', // Larger icons
+                }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText primary={item.text} sx={{ opacity: isOpen ? 1 : 0, '& .MuiTypography-root': { fontSize: '1.1rem', fontWeight: 500 } }} />
+              </ListItemButton>
+            </Tooltip>
           </ListItem>
         ))}
       </List>
@@ -164,28 +174,46 @@ const Sidebar: React.FC<SidebarProps> = ({ variant, open, isCollapsed, onClose, 
 
       {/* Secondary Navigation (Settings, Logout) */}
       <Divider sx={{ borderColor: theme.palette.divider, mx: 2 }} />
-      <List sx={{ px: isOpen ? 1 : 0.5, pb: 2 }}> {/* Padding bottom */}
+      <List sx={{ px: isOpen ? 2 : 0.5, pb: 3 }}> {/* Padding bottom */}
         {secondaryNavItems.map((item) => (
           <ListItem key={item.text} disablePadding sx={{ display: 'block' }}>
-            <ListItemButton
-              component={Link}
-              to={item.path}
-              selected={location.pathname === item.path}
-              sx={{
-                minHeight: 48,
-                justifyContent: isOpen ? 'initial' : 'center',
-                px: 2.5,
-              }}
-            >
-              <ListItemIcon sx={{
-                minWidth: 0,
-                mr: isOpen ? 2 : 'auto',
-                justifyContent: 'center',
-              }}>
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText primary={item.text} sx={{ opacity: isOpen ? 1 : 0, '& .MuiTypography-root': { fontSize: '0.9rem', fontWeight: 500 } }} />
-            </ListItemButton>
+            <Tooltip title={!isOpen ? item.text : ''} placement="right">
+              <ListItemButton
+                component={Link}
+                to={item.path}
+                selected={location.pathname === item.path}
+                sx={{
+                  minHeight: 64, // Increased height
+                  justifyContent: isOpen ? 'initial' : 'center',
+                  px: 3, // Increased padding
+                  ...(location.pathname === item.path ? {
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      left: 0,
+                      top: '50%',
+                      bottom: '50%',
+                      transform: 'translateY(-50%)',
+                      width: 3,
+                      height: '60%',
+                      borderRadius: '0 8px 8px 0',
+                      backgroundColor: theme.palette.primary.main,
+                    },
+                    backgroundColor: theme.palette.action.hover,
+                  } : {}),
+                }}
+              >
+                <ListItemIcon sx={{
+                  minWidth: 0,
+                  mr: isOpen ? 3 : 'auto', // Increased spacing
+                  justifyContent: 'center',
+                  fontSize: '2rem', // Larger icons
+                }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText primary={item.text} sx={{ opacity: isOpen ? 1 : 0, '& .MuiTypography-root': { fontSize: '1.1rem', fontWeight: 500 } }} />
+              </ListItemButton>
+            </Tooltip>
           </ListItem>
         ))}
       </List>
@@ -198,7 +226,7 @@ const Sidebar: React.FC<SidebarProps> = ({ variant, open, isCollapsed, onClose, 
       <Drawer
         variant="temporary"
         open={open}
-        onClose={onClose}
+        onClose={onToggle}
         ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: 'block', md: 'none' },

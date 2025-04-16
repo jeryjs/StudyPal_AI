@@ -1,19 +1,19 @@
 import React, { createContext, useState, useMemo, useContext, ReactNode, useEffect } from 'react';
 import { createTheme, ThemeProvider as MuiThemeProvider, ThemeOptions, Theme, alpha } from '@mui/material/styles';
 import { Box, PaletteMode } from '@mui/material';
-import { getThemeSetting, setThemeSetting } from '../store/settings';
+import { getThemeSetting, setThemeSetting } from '@store/settings';
 
 // --- Base Theme Options ---
 const baseThemeOptions: ThemeOptions = {
     typography: {
         fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-        h4: { fontWeight: 600, fontSize: '1.75rem' },
-        h5: { fontWeight: 600, fontSize: '1.25rem' },
-        h6: { fontWeight: 600, fontSize: '1.1rem' },
-        body1: { fontSize: '0.9rem' },
-        body2: { fontSize: '0.8rem' },
-        button: { textTransform: 'none', fontWeight: 600 },
-        caption: { fontSize: '0.75rem' },
+        h4: { fontWeight: 600, fontSize: '2rem' },
+        h5: { fontWeight: 600, fontSize: '1.5rem' },
+        h6: { fontWeight: 600, fontSize: '1.25rem' },
+        body1: { fontSize: '1rem' },
+        body2: { fontSize: '0.9rem' },
+        button: { textTransform: 'none', fontWeight: 600, fontSize: '1.1rem' },
+        caption: { fontSize: '0.85rem' },
     },
     shape: {
         borderRadius: 6,
@@ -26,12 +26,12 @@ const baseThemeOptions: ThemeOptions = {
             styleOverrides: {
                 root: ({ theme }) => ({
                     backgroundImage: 'none',
-                    // Apply glass effect: semi-transparent background + blur
-                    backgroundColor: alpha(theme.palette.background.paper, 0.6), // Adjust transparency
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)', // For Safari
+                    backgroundColor: alpha(theme.palette.background.paper, 0.7),
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)', // For Safari
                     borderRadius: theme.shape.borderRadius,
                     border: `1px solid ${alpha(theme.palette.divider, 0.2)}`, // Subtle border
+                    boxShadow: `0px 4px 12px ${alpha(theme.palette.divider, 0.1)}`, // Subtle shadow
                 }),
             }
         },
@@ -41,22 +41,23 @@ const baseThemeOptions: ThemeOptions = {
             },
             styleOverrides: {
                 root: ({ theme }) => ({
-                    // Inherit Paper styles for consistency or define specific Card styles
-                    backgroundColor: alpha(theme.palette.background.paper, 0.6),
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
+                    backgroundColor: alpha(theme.palette.background.paper, 0.7),
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
                     border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
                     borderRadius: theme.shape.borderRadius,
                     backgroundImage: 'none',
+                    boxShadow: `0px 4px 12px ${alpha(theme.palette.divider, 0.1)}`, // Subtle shadow
                 }),
             }
         },
         MuiButton: {
             styleOverrides: {
                 root: ({ theme }) => ({
-                    borderRadius: 8,
-                    padding: theme.spacing(0.75, 2.5),
-                    boxShadow: 'none',
+                    borderRadius: 12,
+                    padding: theme.spacing(1.25, 3),
+                    boxShadow: `0px 2px 6px ${alpha(theme.palette.divider, 0.1)}`, // Subtle shadow
+                    fontSize: '1.1rem',
                 }),
                 containedPrimary: ({ theme }) => ({
                     backgroundColor: theme.palette.primary.main,
@@ -69,6 +70,7 @@ const baseThemeOptions: ThemeOptions = {
                 outlinedPrimary: ({ theme }) => ({
                     borderColor: alpha(theme.palette.primary.main, 0.5),
                     color: theme.palette.primary.main,
+                    fontSize: '1.1rem',
                     '&:hover': {
                         background: alpha(theme.palette.primary.main, 0.08),
                         borderColor: theme.palette.primary.main,
@@ -76,6 +78,7 @@ const baseThemeOptions: ThemeOptions = {
                 }),
                 textPrimary: ({ theme }) => ({
                     color: theme.palette.primary.main,
+                    fontSize: '1.1rem',
                     '&:hover': {
                         background: alpha(theme.palette.primary.main, 0.08),
                     },
@@ -86,23 +89,23 @@ const baseThemeOptions: ThemeOptions = {
             styleOverrides: {
                 paper: ({ theme }) => ({
                     borderRight: 'none',
-                    // Apply glass effect, potentially with different transparency
-                    backgroundColor: alpha(theme.palette.background.paper, 0.7),
-                    backdropFilter: 'blur(16px)',
-                    WebkitBackdropFilter: 'blur(16px)',
+                    backgroundColor: alpha(theme.palette.background.paper, 0.8),
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)',
                     backgroundImage: 'none',
+                    boxShadow: `4px 0px 12px ${alpha(theme.palette.divider, 0.1)}`, // Subtle shadow
                 })
             }
         },
         MuiAppBar: {
             styleOverrides: {
-                root: ({ theme }) => ({ // Apply glass effect to AppBar
-                    boxShadow: 'none',
+                root: ({ theme }) => ({
+                    boxShadow: `0px 2px 8px ${alpha(theme.palette.divider, 0.1)}`, // Subtle shadow
                     backgroundImage: 'none',
-                    backgroundColor: alpha(theme.palette.background.paper, 0.7), // Match drawer or use specific value
-                    backdropFilter: 'blur(16px)',
-                    WebkitBackdropFilter: 'blur(16px)',
-                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`, // Subtle border
+                    backgroundColor: alpha(theme.palette.background.paper, 0.8),
+                    backdropFilter: 'blur(24px)',
+                    WebkitBackdropFilter: 'blur(24px)',
+                    borderBottom: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
                     color: theme.palette.text.primary,
                 })
             }
@@ -110,17 +113,15 @@ const baseThemeOptions: ThemeOptions = {
         MuiListItemButton: {
             styleOverrides: {
                 root: ({ theme }) => ({
-                    borderRadius: 8,
-                    margin: theme.spacing(0.5, 1.5),
-                    padding: theme.spacing(0.8, 1.5),
+                    borderRadius: 12,
+                    margin: theme.spacing(0.75, 1.5),
+                    padding: theme.spacing(1, 1.5),
                     width: 'auto',
                     '&:hover': {
                         backgroundColor: alpha(theme.palette.action.hover, 0.1),
                     },
                     '&.Mui-selected': {
                         backgroundColor: 'transparent',
-                        // Use a visual indicator like a left border or stronger text/icon color
-                        // Example: borderLeft: `3px solid ${theme.palette.primary.main}`, paddingLeft: `calc(${theme.spacing(1.5)} - 3px)`,
                         color: theme.palette.primary.main,
                         '& .MuiListItemIcon-root': {
                             color: theme.palette.primary.main,
@@ -139,17 +140,17 @@ const baseThemeOptions: ThemeOptions = {
                     marginRight: theme.spacing(2),
                     color: theme.palette.text.secondary,
                     marginLeft: theme.spacing(0.5),
+                    fontSize: '1.5rem',
                 }),
             }
         },
         MuiOutlinedInput: {
             styleOverrides: {
                 root: ({ theme }) => ({
-                    borderRadius: 8,
-                    // Use a semi-transparent background for inputs too
-                    backgroundColor: alpha(theme.palette.background.default, 0.7),
-                    backdropFilter: 'blur(5px)', // Subtle blur for inputs
-                    WebkitBackdropFilter: 'blur(5px)',
+                    borderRadius: 12,
+                    backgroundColor: alpha(theme.palette.background.default, 0.8),
+                    backdropFilter: 'blur(10px)',
+                    WebkitBackdropFilter: 'blur(10px)',
                     '& fieldset': {
                         borderColor: alpha(theme.palette.divider, 0.3),
                     },
@@ -160,14 +161,13 @@ const baseThemeOptions: ThemeOptions = {
                         borderColor: theme.palette.primary.main,
                         borderWidth: '1px',
                     },
-                    // Remove inner shadow on focus if it exists
                     '&.Mui-focused': {
                         boxShadow: 'none',
                     }
                 }),
                 input: ({ theme }) => ({
-                    padding: theme.spacing(1.25, 1.5),
-                    fontSize: '0.9rem',
+                    padding: theme.spacing(1.5, 2),
+                    fontSize: '1rem',
                     color: theme.palette.text.primary,
                 }),
             }
@@ -175,16 +175,13 @@ const baseThemeOptions: ThemeOptions = {
         MuiInputBase: {
             styleOverrides: {
                 input: ({ theme }) => ({
-                    '&::placeholder': {
-                        color: theme.palette.text.secondary,
-                        opacity: 0.6,
-                    },
+                    fontSize: '1rem',
                 }),
             }
         },
         MuiGrid: {
             defaultProps: {
-                spacing: 13 // Example: Set default spacing
+                spacing: 3
             }
         }
     }

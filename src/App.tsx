@@ -26,17 +26,12 @@ function App() {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  const handleSidebarClose = () => {
-    setIsSidebarOpen(false);
-  };
-
   const sidebarWidth = 260; // Slightly wider sidebar
   const collapsedSidebarWidth = 80; // Wider collapsed sidebar
 
   const sidebarVariant = isMobile ? 'temporary' : 'persistent';
-  const isPersistentCollapsed = !isMobile && !isSidebarOpen;
   // Drawer open state: controls temporary visibility and persistent expansion
-  const drawerOpenState = isMobile ? isSidebarOpen : !isPersistentCollapsed;
+  const drawerOpenState = isMobile ? isSidebarOpen : isSidebarOpen;
 
   return (
     <>
@@ -59,8 +54,8 @@ function App() {
               >
                 <MenuIcon />
               </IconButton>
-              <Typography variant="h6" noWrap component="div">
-                Study-Pal
+              <Typography variant="h5" noWrap component="div" sx={{ fontWeight: 700, color: theme.palette.text.primary, display: 'block' }}>
+                  Study<span style={{ color: theme.palette.primary.main }}>Pal</span>
               </Typography>
             </Toolbar>
           </AppBar>
@@ -71,8 +66,6 @@ function App() {
           <Sidebar
             variant={sidebarVariant}
             open={drawerOpenState} // Controls visibility/state
-            isCollapsed={isPersistentCollapsed} // Pass collapsed state explicitly
-            onClose={handleSidebarClose}
             onToggle={handleSidebarToggle}
             width={sidebarWidth}
             collapsedWidth={collapsedSidebarWidth}
@@ -97,7 +90,7 @@ function App() {
               duration: theme.transitions.duration.leavingScreen,
             }),
             // Apply entering transition only when opening the persistent sidebar
-            ...(!isPersistentCollapsed && !isMobile && !isCopilotRoute && {
+            ...(!isMobile && !isCopilotRoute && {
               transition: theme.transitions.create('margin', {
                 easing: theme.transitions.easing.easeOut,
                 duration: theme.transitions.duration.enteringScreen,

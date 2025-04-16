@@ -11,6 +11,7 @@ import Chatbar from '@components/Chatbar';
 import HomePage from '@pages/HomePage';
 import SettingsPage from '@pages/SettingsPage';
 import CopilotPage from '@pages/CopilotPage';
+import LearnPage from '@pages/LearnPage';
 
 function App() {
   const location = useLocation();
@@ -112,7 +113,7 @@ function App() {
             <Route path="/settings" element={<SettingsPage />} />
             {/* Add placeholder routes for sidebar items */}
             <Route path="/subjects" element={<Typography sx={{ p: 3 }}>Subjects Page (Placeholder)</Typography>} />
-            <Route path="/learn" element={<Typography sx={{ p: 3 }}>Study Plan Page (Placeholder)</Typography>} />
+            <Route path="/learn" element={<LearnPage />} />
             <Route path="/todo" element={<Typography sx={{ p: 3 }}>Todo Page (Placeholder)</Typography>} />
             <Route path="/profile" element={<Typography sx={{ p: 3 }}>Profile Page (Placeholder)</Typography>} />
 

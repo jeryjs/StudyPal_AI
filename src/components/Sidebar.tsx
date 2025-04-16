@@ -9,8 +9,6 @@ import TimelineRoundedIcon from '@mui/icons-material/TimelineRounded'; // Activi
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded'; // Statistics
 import MailOutlineRoundedIcon from '@mui/icons-material/MailOutlineRounded'; // Messages
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'; // Settings
-import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'; // Log Out
-import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded'; // Heart icon for logo
 
 // --- Sidebar Props ---
 interface SidebarProps {
@@ -76,12 +74,25 @@ const StyledDrawer = styled(Drawer, {
 // --- Sidebar Header (Logo/Title) ---
 const DrawerHeader = styled('div')(({ theme }) => ({
   display: 'flex',
+  flexDirection: 'column', // Changed to column
   alignItems: 'center',
-  // justifyContent: 'center', // Center logo/title
-  padding: theme.spacing(2, 2.5), // Adjust padding
-  minHeight: 70, // Match AppBar height (adjust if necessary)
+  justifyContent: 'center', // Center logo/title
+  padding: theme.spacing(3, 1), // Adjust padding
+  marginBottom: theme.spacing(1),
   // Use theme toolbar mixin if AppBar is present and needs spacing
   // ...theme.mixins.toolbar,
+}));
+
+const LogoContainer = styled(Box)(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingBlock: theme.spacing(1.5),
+  borderRadius: theme.shape.borderRadius,
+  backgroundColor: 'rgba(255, 255, 255, 0.1)', // Glassmorphism background
+  backdropFilter: 'blur(10px)', // Glassmorphism blur
+  border: '1px solid rgba(255, 255, 255, 0.2)', // Glassmorphism border
+  width: '100%', // Full width
 }));
 
 // --- Navigation Items ---
@@ -107,14 +118,16 @@ const Sidebar: React.FC<SidebarProps> = ({ variant, open, isCollapsed, onClose, 
   const drawerContent = (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <DrawerHeader>
-        {/* Simple Logo/Title - Replace with actual logo if available */}
-        <Typography variant="h6" noWrap component="div" sx={{ color: theme.palette.primary.main, fontWeight: 700, display: isOpen ? 'block' : 'none' }}>
-          StudyPal
-        </Typography>
-        {/* Placeholder for collapsed logo */}
-        {!isOpen && (
-          <Avatar sx={{ bgcolor: theme.palette.primary.main, width: 32, height: 32, fontSize: '1rem' }}>SP</Avatar>
-        )}
+        <LogoContainer>
+          {/* Simple Logo/Title - Replace with actual logo if available */}
+          <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700, display: 'block', color: 'white' }}>
+            <span style={{ color: 'inherit' }}>Study</span><span style={{ color: theme.palette.primary.main }}>Pal</span>
+          </Typography>
+          {/* Placeholder for collapsed logo */}
+          {/* {!isOpen && (
+            <Avatar sx={{ bgcolor: theme.palette.primary.main, width: 32, height: 32, fontSize: '1rem' }}>SP</Avatar>
+          )} */}
+        </LogoContainer>
         {/* NOTE: Removed toggle button based on image #1 */}
       </DrawerHeader>
       <Divider sx={{ borderColor: theme.palette.divider, opacity: 0.5, mx: 2, my: 1 }} />

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Box, TextField, IconButton, Grow, Paper, styled, useTheme, alpha, Zoom } from '@mui/material';
-import ChatIcon from '@mui/icons-material/ChatBubbleOutline';
+import ChatIcon from '@mui/icons-material/SmartToyOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 import { useNavigate, useLocation, useSearchParams } from 'react-router';

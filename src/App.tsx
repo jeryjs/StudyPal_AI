@@ -4,8 +4,8 @@ import { Box, CssBaseline, AppBar, Toolbar, IconButton, Typography, useTheme, us
 import MenuIcon from '@mui/icons-material/Menu';
 
 // Import Layout Components
-import Sidebar from '@components/Sidebar';
-import Chatbar from '@components/Chatbar';
+import Sidebar from '@components/shared/Sidebar';
+import Chatbar from '@components/shared/Chatbar';
 
 // Import Pages
 import HomePage from '@pages/HomePage';

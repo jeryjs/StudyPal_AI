@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Box, TextField, IconButton, Grow, Paper, styled, useTheme, alpha, Zoom } from '@mui/material';
-import ChatIcon from '@mui/icons-material/SmartToyOutlined';
+import ChatIcon from '@mui/icons-material/SmartToyOutlined'; // Placeholder: Replace with custom Siri-like icon/SVG
 import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 import { useNavigate, useLocation, useSearchParams } from 'react-router';
@@ -13,15 +13,18 @@ const ChatbarContainer = styled(Box, {
 })<{ isExpanded?: boolean }>(({ theme, isExpanded }) => ({
     position: 'fixed',
     bottom: isExpanded ? 0 : theme.spacing(3),
-    left: '0',
-    right: '0',
-    marginLeft: 'auto',
-    marginRight: 'auto',
-    width: isExpanded ? '100%' : 'clamp(350px, 90%, 600px)',
-    maxWidth: '90%',
+    // Centering logic:
+    left: isExpanded ? '0' : '50%', // Set to 50% when collapsed
+    right: isExpanded ? '0' : 'auto', // Set to auto when collapsed
+    transform: isExpanded ? 'none' : 'translateX(-50%)', // Apply transform only when collapsed
+    // Remove margin: auto as it's not needed with transform centering
+    margin: isExpanded ? 0 : undefined, 
+    width: isExpanded ? '100%' : 'clamp(350px, 90%, 600px)', // Width constraint for collapsed state
+    maxWidth: '90%', // Max width constraint
     height: isExpanded ? '100vh' : 'auto',
     zIndex: theme.zIndex.drawer + 2,
-    transition: theme.transitions.create(['width', 'height', 'bottom', 'border-radius', 'background-color', 'backdrop-filter'], {
+    // Added left, transform, margin to transition
+    transition: theme.transitions.create(['width', 'height', 'bottom', 'border-radius', 'background-color', 'backdrop-filter', 'margin', 'left', 'transform'], { 
         easing: theme.transitions.easing.easeInOut,
         duration: theme.transitions.duration.complex,
     }),
@@ -31,23 +34,29 @@ const ChatbarContainer = styled(Box, {
     backdropFilter: isExpanded ? 'blur(10px)' : 'none',
     WebkitBackdropFilter: isExpanded ? 'blur(10px)' : 'none',
     transformOrigin: 'bottom', // Key for upward growth
+    // Ensure pointer events are enabled only when needed
+    pointerEvents: isExpanded ? 'auto' : 'none', 
 }));
+
 
 const ChatbarPaper = styled(Paper, {
     shouldForwardProp: (prop) => prop !== 'isExpanded'
 })<{ isExpanded?: boolean }>(({ theme, isExpanded }) => ({
     display: 'flex',
     alignItems: 'center',
-    padding: theme.spacing(1, 1, 1, 2.5),
+    padding: theme.spacing(1, 1, 1, 2), // Adjusted padding slightly
+    pointerEvents: 'auto', // Ensure paper itself is interactive
     ...(!isExpanded && {
-        backgroundColor: alpha(theme.palette.background.paper, 0.6),
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
-        boxShadow: theme.shadows[3],
-        borderRadius: `calc(${theme.shape.borderRadius}px * 1.5)`,
+        // Styles to mimic Siri bar
+        backgroundColor: alpha(theme.palette.mode === 'dark' ? theme.palette.grey[900] : theme.palette.common.white, 0.75), // Lighter, more translucent background
+        backdropFilter: 'blur(20px) saturate(180%)', // Increased blur, added saturate
+        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+        border: `1px solid ${alpha(theme.palette.mode === 'dark' ? theme.palette.common.white : theme.palette.common.black, 0.1)}`, // Very subtle border
+        boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.15)}`, // Softer, more diffused shadow
+        borderRadius: '50px', // Pill shape
     }),
     ...(isExpanded && {
+        // ... expanded styles remain the same ...
         backgroundColor: 'transparent',
         backdropFilter: 'none',
         WebkitBackdropFilter: 'none',
@@ -68,27 +77,29 @@ const ChatInput = styled(TextField)(({ theme }) => ({
     flexGrow: 1,
     marginRight: theme.spacing(1),
     '& .MuiOutlinedInput-root': {
-        borderRadius: `calc(${theme.shape.borderRadius}px * 1.5)`,
-        transition: theme.transitions.create(['background-color', 'box-shadow']),
-        backgroundColor: 'transparent',
+        borderRadius: '50px', // Match paper's border radius
+        backgroundColor: 'transparent', // Ensure no background override
         '& fieldset': {
-            border: 'none',
+            border: 'none', // No border on the input itself
         },
+        // Remove hover/focus background effects for cleaner look
         '&:hover': {
-            backgroundColor: alpha(theme.palette.action.hover, 0.05),
+             backgroundColor: 'transparent',
         },
         '&.Mui-focused': {
-            backgroundColor: alpha(theme.palette.action.selected, 0.08),
-            boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.3)}`,
+             backgroundColor: 'transparent',
+             boxShadow: 'none', // Remove focus ring
         },
         input: {
             color: theme.palette.text.primary,
-            padding: theme.spacing(1.5, 2),
-            fontSize: '0.95rem',
+            padding: theme.spacing(1.25, 0), // Adjust vertical padding, remove horizontal (handled by paper)
+            fontSize: '1rem', // Slightly larger font like Siri
+            textAlign: 'left', // Ensure text starts after icon
         },
         '& ::placeholder': {
             color: theme.palette.text.secondary,
-            opacity: 0.8,
+            opacity: 0.9, // Slightly less opaque placeholder
+            fontSize: '1rem',
         },
     },
 }));
@@ -103,6 +114,7 @@ const Chatbar: React.FC = () => {
 
     const isExpanded = location.pathname === '/copilot';
     const currentPage = searchParams.get('page') || '';
+
 
     // Handle keyboard events (Escape key for closing)
     React.useEffect(() => {
@@ -138,9 +150,10 @@ const Chatbar: React.FC = () => {
         }
     };
 
+
     return (
         <ChatbarContainer isExpanded={isExpanded} >
-            {/* Expanded Content Area (Rendered first in DOM for layout) */}
+            {/* Expanded Content Area */}
             {isExpanded && (
                 <Zoom in={isExpanded} style={{ transitionDelay: isExpanded ? '300ms' : '0ms' }}>
                     <Box sx={{ flexGrow: 1, overflowY: 'auto', width: '100%', position: 'relative' }}>
@@ -151,52 +164,40 @@ const Chatbar: React.FC = () => {
                 </Zoom>
             )}
 
-            {/* Input Area (Rendered last for visual bottom placement) */}
-            {/* Use Grow only for the initial appearance of the collapsed bar */}
+
+            {/* Input Area (Collapsed) */}
             <Grow
                 in={!isExpanded}
                 mountOnEnter
                 unmountOnExit
-                style={{ transformOrigin: 'bottom center' }} // Ensure it grows from the bottom
+                style={{ transformOrigin: 'bottom center' }}
                 timeout={500}
             >
-                <Box sx={{
-                    position: 'absolute',
-                    bottom: theme.spacing(3),
-                    left: '30%', // Center using transform
-                    transform: 'translateX(-50%)', // Center using transform
-                    width: 'clamp(350px, 90%, 600px)',
-                    maxWidth: '90%',
-                    zIndex: -10,
-                }}>
-                    {/* This inner Box is needed for Grow to work correctly with the fixed positioning logic */}
-                    <ChatbarPaper elevation={0} isExpanded={false}> {/* Use elevation 0 as theme handles border/shadow */}
-                        <ChatIcon sx={{ mr: 1.5, color: theme.palette.text.secondary }} />
-                        <Box component="form" onSubmit={handleSend} sx={{ display: 'flex', flexGrow: 1, alignItems: 'center' }}>
-                            <ChatInput
-                                variant="outlined"
-                                placeholder="Chat with Study-Pal Copilot..."
-                                fullWidth
-                                onFocus={handleFocus}
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                autoComplete="off"
-                            />
-                            <IconButton type="submit" color="primary" aria-label="Send message" disabled={!inputValue.trim()}>
-                                <SendIcon />
-                            </IconButton>
-                        </Box>
-                    </ChatbarPaper>
-                </Box>
+                 <ChatbarPaper elevation={0} isExpanded={false}>
+                    {/* TODO: Replace ChatIcon with a custom SVG icon that looks like the Siri logo */}
+                    <ChatIcon sx={{ mr: 1.5, ml: 0.5, color: theme.palette.text.secondary }} />
+                    <Box component="form" onSubmit={handleSend} sx={{ display: 'flex', flexGrow: 1, alignItems: 'center' }}>
+                        <ChatInput
+                            variant="outlined"
+                            placeholder="Ask Copilot..." // Updated placeholder
+                            fullWidth
+                            onFocus={handleFocus}
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            autoComplete="off"
+                        />
+                        {/* Send button is hidden when collapsed */}
+                    </Box>
+                </ChatbarPaper>
             </Grow>
 
-            {/* Input area when expanded (part of the main container flow) */}
+            {/* Input area when expanded */}
             {isExpanded && (
                 <ChatbarPaper elevation={0} isExpanded={true}>
                     <IconButton
                         onClick={handleClose}
                         size="small"
-                        sx={{ mr: 10, color: theme.palette.text.secondary }}
+                        sx={{ mr: 1, color: theme.palette.text.secondary }} // Reduced margin
                         aria-label="Close Copilot"
                     >
                         <CloseIcon />

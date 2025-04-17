@@ -1,61 +1,52 @@
 import React from 'react';
-import { Box, Typography, Paper, Grid, useTheme, alpha, Avatar, IconButton, LinearProgress, List, ListItem, ListItemText, ListItemAvatar, Card, CardContent, Chip, Button } from '@mui/material';
-import BarChartIcon from '@mui/icons-material/BarChart';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
-import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
+import { Box, Typography, Paper, Grid, useTheme, alpha, Avatar, IconButton, List, ListItem, ListItemText, ListItemAvatar, Card, CardContent, Button } from '@mui/material';
+// Import study-related icons
+import SchoolIcon from '@mui/icons-material/School'; // For current subject/overall progress
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn'; // For tasks/deadlines
+import AccessTimeFilledIcon from '@mui/icons-material/AccessTimeFilled'; // For study time/streak
+import LightbulbIcon from '@mui/icons-material/Lightbulb'; // For suggestions/goals
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
-import CalendarSidebar from '../components/dashboard/CalendarSidebar';
+import ChatBubbleIcon from '@mui/icons-material/ChatBubble'; // Keep for messages/notifications
+import CalendarSidebar from '../components/dashboard/CalendarSidebar'; // Assuming this is study-related
 import AddIcon from '@mui/icons-material/Add';
+import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline'; // For starting session
+import StyleIcon from '@mui/icons-material/Style'; // For flashcards/review
+import Chatbar from '../components/shared/Chatbar'; // Import the Chatbar
 
 const HomePage: React.FC = () => {
   const theme = useTheme();
 
-  // Placeholder data
+  // Updated placeholder data for study widgets
   const dashboardItems = [
-    { title: 'Progress', value: '2135 Kcal', icon: <BarChartIcon fontSize="large" color="primary" />, color: theme.palette.primary.main },
-    { title: 'Status', value: '72 bpm', icon: <CalendarTodayIcon fontSize="large" sx={{ color: alpha(theme.palette.warning.main, 0.8) }} />, color: theme.palette.warning.main },
-    { title: 'Running Challenge', value: '22 Days', icon: <DirectionsRunIcon fontSize="large" sx={{ color: alpha(theme.palette.success.main, 0.8) }} />, color: theme.palette.success.main },
+    { title: 'Current Focus', value: 'Physics - Ch. 4', icon: <SchoolIcon fontSize="large" color="primary" />, color: theme.palette.primary.main, handler: () => console.log('Viewing Current Subject...') },
+    { title: 'Upcoming Tasks', value: '3 Due Soon', icon: <AssignmentTurnedInIcon fontSize="large" sx={{ color: alpha(theme.palette.warning.main, 0.8) }} />, color: theme.palette.warning.main, handler: () => console.log('Viewing Tasks...') },
+    { title: 'Study Time Today', value: '1h 45m', icon: <AccessTimeFilledIcon fontSize="large" sx={{ color: alpha(theme.palette.success.main, 0.8) }} />, color: theme.palette.success.main, handler: () => console.log('Viewing Study Stats...') },
   ];
 
-  const messages = [
-    { id: 1, sender: 'Darrell Steward', message: 'How are you?', unread: true },
-    { id: 2, sender: 'Theresa Webb', message: 'ONWARDS 13', unread: false },
-    { id: 3, sender: 'Jenny Wilson', message: 'What do you make of the plan?', unread: false },
+  // Keep messages or rename to notifications
+  const notifications = [
+    { id: 1, sender: 'AI Tutor', message: 'New practice problems available for Physics.', unread: true },
+    { id: 2, sender: 'Study Group', message: 'Meeting scheduled for Friday at 3 PM.', unread: false },
+    { id: 3, sender: 'System', message: 'Weekly progress report is ready.', unread: false },
   ];
 
-  // Functions for widget actions
-  const handleProgressClick = () => {
-    console.log('Navigating to Progress Details...');
-    // TODO: Implement navigation or logic for progress details
+  // Functions for widget actions (renamed/repurposed)
+  const handleViewLearningGoals = () => {
+    console.log('Viewing Learning Goals...');
+    // TODO: Implement logic for viewing goals
   };
 
-  const handleStatusClick = () => {
-    console.log('Viewing Health Status...');
-    // TODO: Implement logic for viewing health status
-  };
-
-  const handleRunningChallengeClick = () => {
-    console.log('Viewing Running Challenge...');
-    // TODO: Implement logic for viewing running challenge
-  };
-
-  const handleViewSuggestions = () => {
-    console.log('Viewing Suggestions...');
-    // TODO: Implement logic for viewing suggestions
-  };
-
-  const handleMessageClick = (messageId: number) => {
-    console.log(`Opening message ID: ${messageId}`);
-    // TODO: Implement logic for opening a message
+  const handleNotificationClick = (notificationId: number) => {
+    console.log(`Opening notification ID: ${notificationId}`);
+    // TODO: Implement logic for opening a notification
   };
 
   const handleQuickAction = (action: string) => {
     console.log(`Performing Quick Action: ${action}`);
-    // TODO: Implement logic for quick actions
+    // TODO: Implement logic for quick actions like starting session, reviewing flashcards
   };
 
-  // Glassmorphism style for cards
+  // Glassmorphism style for cards (keep as is)
   const glassCard = {
     background: alpha(theme.palette.background.paper, 0.7),
     backdropFilter: 'blur(10px)',
@@ -69,7 +60,7 @@ const HomePage: React.FC = () => {
     }
   };
 
-  // Pill button style
+  // Pill button style (keep as is)
   const pillButton = {
     borderRadius: '20px',
     textTransform: 'none',
@@ -79,26 +70,27 @@ const HomePage: React.FC = () => {
     boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.2)}`,
   };
 
+
   return (
     <Box sx={{ m: { xs: 2, md: 4 }, display: 'flex' }}>
       {/* Main Content Area */}
       <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h4" sx={{ fontWeight: 700 }}>
-            Dashboard
+            Study Dashboard
           </Typography>
           <Button
             variant="contained"
             color="primary"
             startIcon={<AddIcon />}
             sx={pillButton}
-            onClick={() => console.log('Creating New Item...')} // Placeholder for create new action
+            onClick={() => console.log('Creating New Study Item...')} // Placeholder for create new action
           >
-            Create New
+            Add New Task
           </Button>
         </Box>
 
-        {/* Top Row Widgets */}
+        {/* Top Row Widgets - Study Focused */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
           {dashboardItems.map((item, index) => (
             <Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
@@ -112,13 +104,7 @@ const HomePage: React.FC = () => {
                   ...glassCard,
                   cursor: 'pointer',
                 }}
-                onClick={
-                  index === 0
-                    ? handleProgressClick
-                    : index === 1
-                    ? handleStatusClick
-                    : handleRunningChallengeClick
-                }
+                onClick={item.handler} // Use the handler from the data
               >
                 <Box>
                   <Typography variant="body1" sx={{ color: 'text.secondary', mb: 0.5 }}>{item.title}</Typography>
@@ -132,58 +118,66 @@ const HomePage: React.FC = () => {
           ))}
         </Grid>
 
-        {/* Middle Row Widgets */}
+        {/* Middle Row Widgets - Study Focused */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
-          {/* Suggestions Widget */}
+          {/* Learning Goals/Suggestions Widget */}
           <Grid size={{ xs: 12, md: 6 }}>
             <Card sx={{ ...glassCard, height: '100%', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-                    Suggestions
+                    Learning Goals
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Explore personalized suggestions and helpful resources.
+                    Track your progress towards mastering new concepts.
                   </Typography>
+                  {/* TODO: Add goal visualization or list here */}
                 </Box>
                 <Button
                   variant="contained"
                   color="primary"
+                  startIcon={<LightbulbIcon />}
                   sx={pillButton}
-                  onClick={handleViewSuggestions}
+                  onClick={handleViewLearningGoals}
                 >
-                  View Suggestions
+                  View Goals
                 </Button>
               </CardContent>
             </Card>
           </Grid>
 
-          {/* Messages Widget */}
+          {/* Notifications Widget */}
           <Grid size={{ xs: 12, md: 6 }}>
             <Card sx={{ ...glassCard, height: '100%', display: 'flex', flexDirection: 'column' }}>
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>Messages</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>Notifications</Typography>
                   <IconButton><MoreVertIcon /></IconButton>
                 </Box>
-                <List sx={{ flexGrow: 1, overflow: 'auto' }}>
-                  {messages.map((message) => (
+                <List sx={{ flexGrow: 1, overflow: 'auto', maxHeight: 200 /* Limit height */ }}>
+                  {notifications.map((notification) => (
                     <ListItem
-                      key={message.id}
+                      key={notification.id}
                       sx={{
                         borderRadius: theme.shape.borderRadius,
                         mb: 1,
-                        bgcolor: message.unread ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                        bgcolor: notification.unread ? alpha(theme.palette.primary.main, 0.1) : 'transparent',
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: alpha(theme.palette.action.hover, 0.5) }
                       }}
-                      onClick={() => handleMessageClick(message.id)}
+                      onClick={() => handleNotificationClick(notification.id)}
                     >
                       <ListItemAvatar>
-                        <Avatar sx={{ bgcolor: theme.palette.secondary.main }}>{message.sender.charAt(0)}</Avatar>
+                        {/* Use a generic icon or sender-specific */}
+                        <Avatar sx={{ bgcolor: theme.palette.secondary.main }}>
+                           {notification.sender === 'AI Tutor' ? <LightbulbIcon fontSize='small'/> : notification.sender === 'Study Group' ? <ChatBubbleIcon fontSize='small'/> : <SchoolIcon fontSize='small'/>}
+                        </Avatar>
                       </ListItemAvatar>
                       <ListItemText
-                        primary={message.sender}
-                        secondary={message.message}
-                        primaryTypographyProps={{ fontWeight: message.unread ? 600 : 400 }}
+                        primary={notification.sender}
+                        secondary={notification.message}
+                        primaryTypographyProps={{ fontWeight: notification.unread ? 600 : 400 }}
+                        secondaryTypographyProps={{ noWrap: true, textOverflow: 'ellipsis' }}
                       />
                     </ListItem>
                   ))}
@@ -193,29 +187,30 @@ const HomePage: React.FC = () => {
           </Grid>
         </Grid>
 
-        {/* Bottom Row Widgets */}
+        {/* Bottom Row Widgets - Study Focused */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
-          {/* User Profile Widget */}
+          {/* Study Profile/Stats Widget */}
           <Grid size={{ xs: 12, md: 6 }}>
             <Card sx={{ ...glassCard, p: 3, borderRadius: theme.shape.borderRadius }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="h6" sx={{ fontWeight: 600 }}>Allan J.</Typography>
-                  <Typography variant="body2" color="text.secondary">B+ Blood Type</Typography>
+                  <Typography variant="body2" color="text.secondary">Student Profile</Typography>
                 </Box>
                 <Box textAlign="right">
-                  <Typography variant="body2">184 cm</Typography>
-                  <Typography variant="body2" color="text.secondary">Height</Typography>
+                  <Typography variant="body2">Physics</Typography>
+                  <Typography variant="body2" color="text.secondary">Top Subject</Typography>
                 </Box>
                 <Box textAlign="right">
-                  <Typography variant="body2">78 kg</Typography>
-                  <Typography variant="body2" color="text.secondary">Weight</Typography>
+                  <Typography variant="body2">85%</Typography>
+                  <Typography variant="body2" color="text.secondary">Avg. Score</Typography>
                 </Box>
               </Box>
+              {/* TODO: Add more relevant stats like subjects completed, streak etc. */}
             </Card>
           </Grid>
 
-          {/* Quick Actions Widget */}
+          {/* Quick Study Actions Widget */}
           <Grid size={{ xs: 12, md: 6 }}>
             <Card sx={{ ...glassCard, p: 3, borderRadius: theme.shape.borderRadius }}>
               <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Quick Actions</Typography>
@@ -223,26 +218,34 @@ const HomePage: React.FC = () => {
                 <Button
                   variant="outlined"
                   color="primary"
+                  startIcon={<PlayCircleOutlineIcon />}
                   sx={{ ...pillButton }}
-                  onClick={() => handleQuickAction('Action 1')}
+                  onClick={() => handleQuickAction('Start Session')}
                 >
-                  Action 1
+                  Start Session
                 </Button>
                 <Button
                   variant="outlined"
-                  color="primary"
-                  sx={{ ...pillButton }}
-                  onClick={() => handleQuickAction('Action 2')}
+                  color="secondary" // Use secondary or another color
+                  startIcon={<StyleIcon />}
+                  sx={{ ...pillButton, borderColor: theme.palette.secondary.main, color: theme.palette.secondary.main }}
+                  onClick={() => handleQuickAction('Review Flashcards')}
                 >
-                  Action 2
+                  Review Cards
                 </Button>
               </Box>
             </Card>
           </Grid>
         </Grid>
+
+        {/* Chatbar Integration */}
+        <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', mt: 4, mb: 2 }}>
+            <Chatbar />
+        </Box>
+
       </Box>
 
-      {/* Right Sidebar */}
+      {/* Right Sidebar (Assuming CalendarSidebar is relevant) */}
       <Box
         component="aside"
         sx={{

@@ -4,13 +4,17 @@ import { Box, CssBaseline, AppBar, Toolbar, IconButton, Typography, useTheme, us
 import MenuIcon from '@mui/icons-material/Menu';
 
 // Import Layout Components
-import Sidebar from '@components/Sidebar';
-import Chatbar from '@components/Chatbar';
+import Sidebar from '@components/shared/Sidebar';
+import Chatbar from '@components/shared/Chatbar';
 
 // Import Pages
 import HomePage from '@pages/HomePage';
 import SettingsPage from '@pages/SettingsPage';
 import CopilotPage from '@pages/CopilotPage';
+import LearnPage from '@pages/LearnPage';
+import SubjectsPage from '@pages/SubjectsPage';
+import TodoPage from '@pages/TodoPage'; // Corrected import name
+import QuizPage from '@pages/QuizPage';
 
 function App() {
   const location = useLocation();
@@ -25,17 +29,12 @@ function App() {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  const handleSidebarClose = () => {
-    setIsSidebarOpen(false);
-  };
-
   const sidebarWidth = 260; // Slightly wider sidebar
   const collapsedSidebarWidth = 80; // Wider collapsed sidebar
 
   const sidebarVariant = isMobile ? 'temporary' : 'persistent';
-  const isPersistentCollapsed = !isMobile && !isSidebarOpen;
   // Drawer open state: controls temporary visibility and persistent expansion
-  const drawerOpenState = isMobile ? isSidebarOpen : !isPersistentCollapsed;
+  const drawerOpenState = isMobile ? isSidebarOpen : isSidebarOpen;
 
   return (
     <>
@@ -58,25 +57,21 @@ function App() {
               >
                 <MenuIcon />
               </IconButton>
-              <Typography variant="h6" noWrap component="div">
-                Study-Pal
+              <Typography variant="h5" noWrap component="div" sx={{ fontWeight: 700, color: theme.palette.text.primary, display: 'block' }}>
+                  Study<span style={{ color: theme.palette.primary.main }}>Pal</span>
               </Typography>
             </Toolbar>
           </AppBar>
         )}
 
         {/* Sidebar */}
-        {!isCopilotRoute && (
           <Sidebar
             variant={sidebarVariant}
             open={drawerOpenState} // Controls visibility/state
-            isCollapsed={isPersistentCollapsed} // Pass collapsed state explicitly
-            onClose={handleSidebarClose}
             onToggle={handleSidebarToggle}
             width={sidebarWidth}
             collapsedWidth={collapsedSidebarWidth}
           />
-        )}
 
         {/* Main Content Area */}
         <Box
@@ -96,7 +91,7 @@ function App() {
               duration: theme.transitions.duration.leavingScreen,
             }),
             // Apply entering transition only when opening the persistent sidebar
-            ...(!isPersistentCollapsed && !isMobile && !isCopilotRoute && {
+            ...(!isMobile && !isCopilotRoute && {
               transition: theme.transitions.create('margin', {
                 easing: theme.transitions.easing.easeOut,
                 duration: theme.transitions.duration.enteringScreen,
@@ -110,12 +105,13 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            {/* Add placeholder routes for sidebar items */}
-            <Route path="/subjects" element={<Typography sx={{ p: 3 }}>Subjects Page (Placeholder)</Typography>} />
-            <Route path="/learn" element={<Typography sx={{ p: 3 }}>Study Plan Page (Placeholder)</Typography>} />
-            <Route path="/todo" element={<Typography sx={{ p: 3 }}>Todo Page (Placeholder)</Typography>} />
+            <Route path="/subjects" element={<SubjectsPage />} />
+            {/* Remove duplicate subjects route */}
+            {/* <Route path="/subjects" element={<Typography sx={{ p: 3 }}>Subjects Page (Placeholder)</Typography>} /> */}
+            <Route path="/learn" element={<LearnPage />} />
+            <Route path="/todo" element={<TodoPage />} /> {/* Corrected route element */}
             <Route path="/profile" element={<Typography sx={{ p: 3 }}>Profile Page (Placeholder)</Typography>} />
-
+            <Route path="/test/:testId" element={<QuizPage />} />
             {/* CopilotPage content is rendered *within* the expanded Chatbar */}
             {/* The route still needs to exist for navigation */}
             {/* <Route path="/copilot" element={<CopilotPage />} /> */}
@@ -123,7 +119,7 @@ function App() {
         </Box>
 
         {/* Chatbar */}
-        <Chatbar />
+        <Chatbar navbarWidth={sidebarVariant === "persistent" ? (isSidebarOpen ? sidebarWidth : collapsedSidebarWidth) : 0} />
       </Box>
     </>
   );

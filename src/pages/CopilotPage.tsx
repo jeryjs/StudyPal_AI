@@ -85,6 +85,25 @@ const CopilotPage: React.FC = () => {
         console.log(`Attaching item: ${item.name}`);
     };
 
+    // Glassmorphism style for chat bubbles (adapted)
+    const glassChatBubble = (sender: 'user' | 'copilot') => ({
+        background: alpha(sender === 'user' ? theme.palette.primary.main : theme.palette.background.paper, 0.6), // Adjusted alpha and colors
+        backdropFilter: 'blur(10px)',
+        border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+        boxShadow: `0 4px 16px 0 ${alpha(theme.palette.common.black, 0.1)}`,
+        borderRadius: '20px', // iOS-like rounded corners
+        borderTopLeftRadius: sender === 'copilot' ? '4px' : '20px', // Specific corner adjustments
+        borderTopRightRadius: sender === 'user' ? '4px' : '20px',
+        borderBottomLeftRadius: '20px',
+        borderBottomRightRadius: '20px',
+        p: 1.5,
+        maxWidth: '75%',
+        color: sender === 'user' ? theme.palette.primary.contrastText : theme.palette.text.primary, // Ensure text contrast
+        display: 'flex',
+        alignItems: 'flex-start', // Align icon with top of text
+    });
+
+
     return (
         <Box sx={{ height: '100%', display: 'flex' }}>
             {/* Main chat area */}
@@ -106,27 +125,15 @@ const CopilotPage: React.FC = () => {
                                 mb: 2,
                             }}
                         >
-                            <Paper
-                                sx={{
-                                    p: 1.5,
-                                    maxWidth: '75%',
-                                    borderRadius: theme.shape.borderRadius,
-                                    borderTopLeftRadius: message.sender === 'copilot' ? 0 : theme.shape.borderRadius, // Style corners like chat bubbles
-                                    borderTopRightRadius: message.sender === 'user' ? 0 : theme.shape.borderRadius,
-                                    backgroundColor: message.sender === 'user'
-                                        ? alpha(theme.palette.primary.main, 0.2) // User message background
-                                        : alpha(theme.palette.background.default, 0.6), // Copilot message background
-                                    color: theme.palette.text.primary,
-                                    display: 'flex',
-                                    alignItems: 'flex-start', // Align icon with top of text
-                                }}
-                            >
+                            {/* Apply the new style */}
+                            <Paper sx={glassChatBubble(message.sender)}>
                                 <Avatar sx={{
                                     width: 32,
                                     height: 32,
                                     mr: 1.5,
                                     mt: 0.5, // Align avatar slightly lower
-                                    bgcolor: message.sender === 'user' ? theme.palette.primary.main : theme.palette.text.secondary,
+                                    bgcolor: message.sender === 'user' ? alpha(theme.palette.common.white, 0.3) : theme.palette.text.secondary, // Adjust avatar background for user
+                                    color: message.sender === 'user' ? theme.palette.primary.contrastText : theme.palette.background.default, // Adjust icon color
                                     fontSize: '1rem'
                                 }}>
                                     {message.sender === 'user' ? <AccountCircleOutlinedIcon fontSize="small"/> : <SmartToyOutlinedIcon fontSize="small"/>}
@@ -135,7 +142,13 @@ const CopilotPage: React.FC = () => {
                                     <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                         {message.text}
                                     </Typography>
-                                    <Typography variant="caption" sx={{ display: 'block', textAlign: 'right', mt: 0.5, color: 'text.secondary', fontSize: '0.7rem' }}>
+                                    <Typography variant="caption" sx={{ 
+                                        display: 'block', 
+                                        textAlign: 'right', 
+                                        mt: 0.5, 
+                                        color: message.sender === 'user' ? alpha(theme.palette.primary.contrastText, 0.7) : 'text.secondary', // Adjust timestamp color
+                                        fontSize: '0.7rem' 
+                                    }}>
                                         {message.timestamp}
                                     </Typography>
                                 </Box>

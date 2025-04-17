@@ -5,7 +5,7 @@ import { DBStore, StoreNames } from '../db';
  * This makes it easy to add new settings in a type-safe way
  */
 export enum SettingKeys {
-  THEME_NAME = 'theme_name',
+  ACTIVE_THEME = 'active_theme',
   // Add more settings as needed:
 }
 
@@ -22,14 +22,14 @@ class SettingsStore extends DBStore<any> {
    * Get the currently selected theme name
    */
   async getTheme(): Promise<string | undefined> {
-    return this.get(SettingKeys.THEME_NAME);
+    return this.get(SettingKeys.ACTIVE_THEME);
   }
 
   /**
    * Set the theme name
    */
-  async setTheme(themeName: string): Promise<void> {
-    await this.set(SettingKeys.THEME_NAME, themeName);
+  async setTheme(themeId: string): Promise<void> {
+    await this.set(SettingKeys.ACTIVE_THEME, themeId);
   }
 
   /**

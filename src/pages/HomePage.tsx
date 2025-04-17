@@ -5,7 +5,7 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import ChatBubbleIcon from '@mui/icons-material/ChatBubble';
-import CalendarSidebar from '../components/CalendarSidebar';
+import CalendarSidebar from '../components/dashboard/CalendarSidebar';
 import AddIcon from '@mui/icons-material/Add';
 
 const HomePage: React.FC = () => {

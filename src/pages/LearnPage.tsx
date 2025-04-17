@@ -28,15 +28,12 @@ import SchoolIcon from '@mui/icons-material/School';
 import SentimentNeutralIcon from '@mui/icons-material/SentimentNeutral';
 import SentimentSatisfiedAltIcon from '@mui/icons-material/SentimentSatisfiedAlt';
 import SentimentVerySatisfiedIcon from '@mui/icons-material/SentimentVerySatisfied';
-import InsightsIcon from '@mui/icons-material/Insights';
-import HiveIcon from '@mui/icons-material/Hive';
-
-import ConceptCard from '@components/learn/ConceptCard';
-import SectionContainer from '@components/learn/SectionContainer';
-import StudyPlanCard from '@components/learn/StudyPlanCard';
-import StudyProgressCard from '@components/learn/StudyProgressCard';
-import TabPanel from '@components/learn/TabPanel';
-import TestCard from '@components/learn/TestCard';
+import ConceptCard from '../components/learn/ConceptCard';
+import SectionContainer from '../components/learn/SectionContainer';
+import StudyPlanCard from '../components/learn/StudyPlanCard';
+import StudyProgressCard from '../components/learn/StudyProgressCard';
+import TabPanel from '../components/learn/TabPanel';
+import TestCard from '../components/learn/TestCard';
 
 // Tab Panel Component
 interface TabPanelProps {

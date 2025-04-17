@@ -13,6 +13,7 @@ import SettingsPage from '@pages/SettingsPage';
 import CopilotPage from '@pages/CopilotPage';
 import LearnPage from '@pages/LearnPage';
 import SubjectsPage from '@pages/SubjectsPage';
+import QuizPage from '@pages/QuizPage';
 
 function App() {
   const location = useLocation();
@@ -111,7 +112,7 @@ function App() {
             <Route path="/learn" element={<LearnPage />} />
             <Route path="/todo" element={<Typography sx={{ p: 3 }}>Todo Page (Placeholder)</Typography>} />
             <Route path="/profile" element={<Typography sx={{ p: 3 }}>Profile Page (Placeholder)</Typography>} />
-
+            <Route path="/test/:testId" element={<QuizPage />} />
             {/* CopilotPage content is rendered *within* the expanded Chatbar */}
             {/* The route still needs to exist for navigation */}
             {/* <Route path="/copilot" element={<CopilotPage />} /> */}

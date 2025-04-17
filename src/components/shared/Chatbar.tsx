@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Box, TextField, IconButton, Grow, Paper, styled, useTheme, alpha, Zoom } from '@mui/material';
-import ChatIcon from '@mui/icons-material/SmartToyOutlined';
+import { Box, TextField, IconButton, Grow, Paper, styled, useTheme, alpha, Zoom, SxProps, Theme } from '@mui/material';
+import ChatIcon from '@mui/icons-material/SmartToyOutlined'; // Placeholder: Replace with custom Siri-like icon/SVG
 import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 import { useNavigate, useLocation, useSearchParams } from 'react-router';
@@ -13,15 +13,9 @@ const ChatbarContainer = styled(Box, {
 })<{ isExpanded?: boolean }>(({ theme, isExpanded }) => ({
     position: 'fixed',
     bottom: isExpanded ? 0 : theme.spacing(3),
-    left: '0',
-    right: '0',
-    marginLeft: 'auto',
-    marginRight: 'auto',
-    width: isExpanded ? '100%' : 'clamp(350px, 90%, 600px)',
-    maxWidth: '90%',
+    width: isExpanded ? '100%' : '360px',
     height: isExpanded ? '100vh' : 'auto',
-    zIndex: theme.zIndex.drawer + 2,
-    transition: theme.transitions.create(['width', 'height', 'bottom', 'border-radius', 'background-color', 'backdrop-filter'], {
+    transition: theme.transitions.create(['width', 'height', 'bottom', 'border-radius', 'background-color', 'backdrop-filter', 'margin', 'left', 'transform'], { 
         easing: theme.transitions.easing.easeInOut,
         duration: theme.transitions.duration.complex,
     }),
@@ -44,8 +38,8 @@ const ChatbarPaper = styled(Paper, {
         backdropFilter: 'blur(12px)',
         WebkitBackdropFilter: 'blur(12px)',
         border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
-        boxShadow: theme.shadows[3],
-        borderRadius: `calc(${theme.shape.borderRadius}px * 1.5)`,
+        boxShadow: theme.shadows[1],
+        borderRadius: `24px`,
     }),
     ...(isExpanded && {
         backgroundColor: 'transparent',
@@ -94,7 +88,11 @@ const ChatInput = styled(TextField)(({ theme }) => ({
 }));
 
 // --- Chatbar Component ---
-const Chatbar: React.FC = () => {
+interface ChatbarProps {
+  navbarWidth: number;
+}
+
+const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();
@@ -139,11 +137,11 @@ const Chatbar: React.FC = () => {
     };
 
     return (
-        <ChatbarContainer isExpanded={isExpanded} >
-            {/* Expanded Content Area (Rendered first in DOM for layout) */}
+        <ChatbarContainer isExpanded={isExpanded} sx={{ left: navbarWidth, transform: isExpanded ? 'none' : `translateX(calc((100vw - ${navbarWidth}) / 2 - 50%))` }}>
+            {/* Expanded Content Area */}
             {isExpanded && (
                 <Zoom in={isExpanded} style={{ transitionDelay: isExpanded ? '300ms' : '0ms' }}>
-                    <Box sx={{ flexGrow: 1, overflowY: 'auto', width: '100%', position: 'relative' }}>
+                    <Box sx={{ flexGrow: 1, overflowY: 'auto', width: '80%', position: 'relative' }}>
                         <CopilotPage /> 
                         {/* CopilotPage content is rendered by the Router here */}
                         {/* Add padding or container if CopilotPage doesn't handle it */}
@@ -151,52 +149,39 @@ const Chatbar: React.FC = () => {
                 </Zoom>
             )}
 
-            {/* Input Area (Rendered last for visual bottom placement) */}
-            {/* Use Grow only for the initial appearance of the collapsed bar */}
+            {/* Input Area (Collapsed) */}
             <Grow
                 in={!isExpanded}
                 mountOnEnter
                 unmountOnExit
-                style={{ transformOrigin: 'bottom center' }} // Ensure it grows from the bottom
+                style={{ transformOrigin: 'bottom center' }}
                 timeout={500}
             >
-                <Box sx={{
-                    position: 'absolute',
-                    bottom: theme.spacing(3),
-                    left: '30%', // Center using transform
-                    transform: 'translateX(-50%)', // Center using transform
-                    width: 'clamp(350px, 90%, 600px)',
-                    maxWidth: '90%',
-                    zIndex: -10,
-                }}>
-                    {/* This inner Box is needed for Grow to work correctly with the fixed positioning logic */}
-                    <ChatbarPaper elevation={0} isExpanded={false}> {/* Use elevation 0 as theme handles border/shadow */}
-                        <ChatIcon sx={{ mr: 1.5, color: theme.palette.text.secondary }} />
-                        <Box component="form" onSubmit={handleSend} sx={{ display: 'flex', flexGrow: 1, alignItems: 'center' }}>
-                            <ChatInput
-                                variant="outlined"
+                 <ChatbarPaper elevation={0} isExpanded={false}>
+                    {/* TODO: Replace ChatIcon with a custom SVG icon that looks like the Siri logo */}
+                    <ChatIcon sx={{ mr: 1.5, ml: 0.5, color: theme.palette.text.secondary }} />
+                    <Box component="form" onSubmit={handleSend} sx={{ display: 'flex', flexGrow: 1, alignItems: 'center' }}>
+                        <ChatInput
+                            variant="outlined"
                                 placeholder="Chat with Study-Pal Copilot..."
-                                fullWidth
-                                onFocus={handleFocus}
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                autoComplete="off"
-                            />
-                            <IconButton type="submit" color="primary" aria-label="Send message" disabled={!inputValue.trim()}>
-                                <SendIcon />
-                            </IconButton>
-                        </Box>
-                    </ChatbarPaper>
-                </Box>
+                            fullWidth
+                            onFocus={handleFocus}
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            autoComplete="off"
+                        />
+                        {/* Send button is hidden when collapsed */}
+                    </Box>
+                </ChatbarPaper>
             </Grow>
 
-            {/* Input area when expanded (part of the main container flow) */}
+            {/* Input area when expanded */}
             {isExpanded && (
                 <ChatbarPaper elevation={0} isExpanded={true}>
                     <IconButton
                         onClick={handleClose}
                         size="small"
-                        sx={{ mr: 10, color: theme.palette.text.secondary }}
+                        sx={{ mr: 1, color: theme.palette.text.secondary }}
                         aria-label="Close Copilot"
                     >
                         <CloseIcon />

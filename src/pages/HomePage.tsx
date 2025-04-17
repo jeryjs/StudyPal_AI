@@ -1,17 +1,16 @@
+import { alpha, Avatar, Box, Button, Card, CardContent, Grid, IconButton, List, ListItem, ListItemAvatar, ListItemText, Paper, Typography, useTheme } from '@mui/material';
 import React from 'react';
-import { Box, Typography, Paper, Grid, useTheme, alpha, Avatar, IconButton, List, ListItem, ListItemText, ListItemAvatar, Card, CardContent, Button } from '@mui/material';
 // Import study-related icons
-import SchoolIcon from '@mui/icons-material/School'; // For current subject/overall progress
-import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn'; // For tasks/deadlines
 import AccessTimeFilledIcon from '@mui/icons-material/AccessTimeFilled'; // For study time/streak
+import AddIcon from '@mui/icons-material/Add';
+import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn'; // For tasks/deadlines
+import ChatBubbleIcon from '@mui/icons-material/ChatBubble'; // Keep for messages/notifications
 import LightbulbIcon from '@mui/icons-material/Lightbulb'; // For suggestions/goals
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import ChatBubbleIcon from '@mui/icons-material/ChatBubble'; // Keep for messages/notifications
-import CalendarSidebar from '../components/dashboard/CalendarSidebar'; // Assuming this is study-related
-import AddIcon from '@mui/icons-material/Add';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline'; // For starting session
+import SchoolIcon from '@mui/icons-material/School'; // For current subject/overall progress
 import StyleIcon from '@mui/icons-material/Style'; // For flashcards/review
-import Chatbar from '../components/shared/Chatbar'; // Import the Chatbar
+import CalendarSidebar from '@components/dashboard/CalendarSidebar'; // Assuming this is study-related
 
 const HomePage: React.FC = () => {
   const theme = useTheme();
@@ -237,12 +236,6 @@ const HomePage: React.FC = () => {
             </Card>
           </Grid>
         </Grid>
-
-        {/* Chatbar Integration */}
-        <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center', mt: 4, mb: 2 }}>
-            <Chatbar />
-        </Box>
-
       </Box>
 
       {/* Right Sidebar (Assuming CalendarSidebar is relevant) */}

@@ -64,7 +64,6 @@ function App() {
         )}
 
         {/* Sidebar */}
-        {!isCopilotRoute && (
           <Sidebar
             variant={sidebarVariant}
             open={drawerOpenState} // Controls visibility/state
@@ -72,7 +71,6 @@ function App() {
             width={sidebarWidth}
             collapsedWidth={collapsedSidebarWidth}
           />
-        )}
 
         {/* Main Content Area */}
         <Box
@@ -120,7 +118,7 @@ function App() {
         </Box>
 
         {/* Chatbar */}
-        <Chatbar />
+        <Chatbar navbarWidth={sidebarVariant === "persistent" ? (isSidebarOpen ? sidebarWidth : collapsedSidebarWidth) : 0} />
       </Box>
     </>
   );

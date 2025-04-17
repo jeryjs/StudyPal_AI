@@ -10,14 +10,14 @@ import {
   Paper,
   Tab, Tabs,
   Typography,
-  useTheme
+  useTheme,
+  keyframes
 } from '@mui/material';
 import React, { useState } from 'react';
 
 // Import Icons
 import AddIcon from '@mui/icons-material/Add';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import LightbulbIcon from '@mui/icons-material/Lightbulb';
@@ -28,12 +28,15 @@ import SchoolIcon from '@mui/icons-material/School';
 import SentimentNeutralIcon from '@mui/icons-material/SentimentNeutral';
 import SentimentSatisfiedAltIcon from '@mui/icons-material/SentimentSatisfiedAlt';
 import SentimentVerySatisfiedIcon from '@mui/icons-material/SentimentVerySatisfied';
-import ConceptCard from '../components/learn/ConceptCard';
-import SectionContainer from '../components/learn/SectionContainer';
-import StudyPlanCard from '../components/learn/StudyPlanCard';
-import StudyProgressCard from '../components/learn/StudyProgressCard';
-import TabPanel from '../components/learn/TabPanel';
-import TestCard from '../components/learn/TestCard';
+import InsightsIcon from '@mui/icons-material/Insights';
+import HiveIcon from '@mui/icons-material/Hive';
+
+import ConceptCard from '@components/learn/ConceptCard';
+import SectionContainer from '@components/learn/SectionContainer';
+import StudyPlanCard from '@components/learn/StudyPlanCard';
+import StudyProgressCard from '@components/learn/StudyProgressCard';
+import TabPanel from '@components/learn/TabPanel';
+import TestCard from '@components/learn/TestCard';
 
 // Tab Panel Component
 interface TabPanelProps {
@@ -81,6 +84,22 @@ const quickReviews = [
   { id: 3, icon: '⏳', title: 'Continue Data Structures', description: 'You\'re 75% through this concept', subject: 'Computer Science', priority: 'low' },
 ];
 
+// Define animations for bees
+const flyAnimation1 = keyframes`
+  0% { transform: translate(0, 0) rotate(10deg); }
+  25% { transform: translate(10px, -5px) rotate(0deg); }
+  50% { transform: translate(5px, 5px) rotate(-10deg); }
+  75% { transform: translate(-5px, 0px) rotate(0deg); }
+  100% { transform: translate(0, 0) rotate(10deg); }
+`;
+
+const flyAnimation2 = keyframes`
+  0% { transform: translate(0, 0) rotate(-5deg); }
+  30% { transform: translate(-8px, 8px) rotate(5deg); }
+  60% { transform: translate(8px, -8px) rotate(-5deg); }
+  100% { transform: translate(0, 0) rotate(-5deg); }
+`;
+
 const LearnPage: React.FC = () => {
   const theme = useTheme();
   const [tabIndex, setTabIndex] = useState(parseInt(localStorage.getItem("learnTabIndex") || '0'));
@@ -97,21 +116,21 @@ const LearnPage: React.FC = () => {
     localStorage.setItem("learnTabIndex", newValue.toString());
   };
 
-  // Neumorphic style for cards
+  // Neumorphic style for cards - reduced foggy appearance
   const neumorphicCard = {
-    background: alpha(theme.palette.background.paper, 0.8),
-    backdropFilter: 'blur(10px)',
+    background: alpha(theme.palette.background.paper, 0.9), // Increased opacity from 0.8 to 0.9
+    backdropFilter: 'blur(8px)', // Reduced blur from 10px to 5px
     borderRadius: '16px',
     boxShadow: `
-      8px 8px 16px ${alpha(theme.palette.common.black, 0.1)},
-      -8px -8px 16px ${alpha(theme.palette.common.white, 0.05)}
+      8px 8px 16px ${alpha(theme.palette.common.black, 0.08)},
+      -8px -8px 16px ${alpha(theme.palette.common.white, 0.03)}
     `,
     transition: 'all 0.3s ease',
     '&:hover': {
       transform: 'translateY(-5px)',
       boxShadow: `
-        12px 12px 20px ${alpha(theme.palette.common.black, 0.12)},
-        -12px -12px 20px ${alpha(theme.palette.common.white, 0.08)}
+        12px 12px 20px ${alpha(theme.palette.common.black, 0.1)},
+        -12px -12px 20px ${alpha(theme.palette.common.white, 0.05)}
       `,
     }
   };
@@ -148,9 +167,67 @@ const LearnPage: React.FC = () => {
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-          Learn
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Box sx={{ position: 'relative', mr: 2, width: 40, height: 40 }}>
+            <HiveIcon 
+              sx={{ 
+                fontSize: 40, 
+                color: theme.palette.warning.main,
+                filter: 'drop-shadow(0 0 2px rgba(255, 160, 0, 0.5))'
+              }} 
+            />
+            {/* Small bees */}
+            <Box 
+              sx={{ 
+                position: 'absolute', 
+                top: -5, 
+                left: -5, 
+                width: 12, 
+                height: 12, 
+                borderRadius: '50%',
+                backgroundColor: '#FFC107',
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: 8,
+                  height: 2,
+                  backgroundColor: '#000',
+                  borderRadius: 1,
+                },
+                animation: `${flyAnimation1} 4s infinite`
+              }} 
+            />
+            <Box 
+              sx={{ 
+                position: 'absolute', 
+                top: 30, 
+                left: 30, 
+                width: 10, 
+                height: 10, 
+                borderRadius: '50%',
+                backgroundColor: '#FFC107',
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: 6,
+                  height: 2,
+                  backgroundColor: '#000',
+                  borderRadius: 1,
+                },
+                animation: `${flyAnimation2} 5s infinite`
+              }} 
+            />
+          </Box>
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            Focus Hive
+          </Typography>
+        </Box>
         <Button
           variant="contained"
           startIcon={<AutoAwesomeIcon />}
@@ -161,7 +238,7 @@ const LearnPage: React.FC = () => {
       </Box>
 
       {/* Study Progress Section */}
-      <SectionContainer title="Your Study Progress" icon={<CalendarTodayIcon />} actionButton={<Chip icon={<CalendarTodayIcon />} label="This Week" variant="filled" sx={{ fontWeight: 500, borderRadius: '12px', background: alpha(theme.palette.primary.main, 0.15), color: theme.palette.primary.main, px: 1 }} />}>
+      <SectionContainer title="Learning Insights" icon={<InsightsIcon />} actionButton={<Chip icon={<InsightsIcon />} label="This Week" variant="filled" sx={{ fontWeight: 500, borderRadius: '12px', background: alpha(theme.palette.primary.main, 0.15), color: theme.palette.primary.main, px: 1 }} />}>
         <Grid container spacing={3} sx={{ mb: 1 }}>
           {subjects.map((subject) => (
             <Grid key={subject.id} size={{ xs: 12, sm: 6, md: 3 }}>
@@ -192,7 +269,7 @@ const LearnPage: React.FC = () => {
                 <Card sx={{
                   ...neumorphicCard,
                   border: `1px solid ${alpha(getSubjectColor(review.subject), 0.2)}`,
-                  background: alpha(theme.palette.background.paper, 0.5),
+                  background: alpha(theme.palette.background.paper, 0.7),
                 }}>
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
@@ -266,7 +343,7 @@ const LearnPage: React.FC = () => {
             ...neumorphicCard,
             mb: 2,
             p: 0.5,
-            background: alpha(theme.palette.background.paper, 0.7)
+            background: alpha(theme.palette.background.paper, 0.8)
           }}
         >
           <Tabs
@@ -346,7 +423,7 @@ const LearnPage: React.FC = () => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 border: `2px dashed ${alpha(theme.palette.primary.main, 0.3)}`,
-                background: alpha(theme.palette.background.paper, 0.3),
+                background: alpha(theme.palette.background.paper, 0.4),
                 minHeight: 280
               }}>
                 <CardContent sx={{ textAlign: 'center' }}>

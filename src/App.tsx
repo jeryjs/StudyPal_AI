@@ -12,6 +12,7 @@ import HomePage from '@pages/HomePage';
 import SettingsPage from '@pages/SettingsPage';
 import CopilotPage from '@pages/CopilotPage';
 import LearnPage from '@pages/LearnPage';
+import SubjectsPage from '@pages/SubjectsPage';
 
 function App() {
   const location = useLocation();
@@ -104,6 +105,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/subjects" element={<SubjectsPage />} />
             {/* Add placeholder routes for sidebar items */}
             <Route path="/subjects" element={<Typography sx={{ p: 3 }}>Subjects Page (Placeholder)</Typography>} />
             <Route path="/learn" element={<LearnPage />} />

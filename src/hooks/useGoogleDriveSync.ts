@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react'; // Added useRef
 import { gapi, loadAuth2 } from 'gapi-script';
 import { v4 as uuidv4 } from 'uuid';
-// Import the moved functions from db.ts
 import { getDb, DB_NAME, StudyPalDB, exportDbToJson, importDbFromJson } from '../db'; 
 import { 
   Subject, 
@@ -23,13 +22,20 @@ const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/r
 const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
 const STUDYPAL_DB_FILE = 'studypal.db.json';
 const DB_BACKUP_MIME_TYPE = 'application/json';
+const LAST_SYNC_TIMESTAMP_KEY = 'studyPalLastSyncTimestamp';
+const DEBOUNCE_DELAY = 5000; // 5 seconds delay for auto-backup
+
+// --- Enums for State --- 
+// Export the type alias
+export type SyncStatusState = 'idle' | 'checking' | 'syncing_up' | 'syncing_down' | 'up_to_date' | 'conflict' | 'error';
+type ConflictResolution = 'local' | 'drive' | null;
 
 // Type for auth state
 type AuthState = {
   isAuthenticated: boolean;
 };
 
-// Type for sync result
+// Type for sync result (Might be less relevant with full backup)
 type SyncResult = {
   successful: number;
   failed: number;
@@ -42,17 +48,19 @@ type SyncResult = {
 export function useGoogleDriveSync() {
   const [isGapiLoaded, setIsGapiLoaded] = useState(false);
   const [authState, setAuthState] = useState<AuthState>({ isAuthenticated: false });
-  const [syncState, setSyncState] = useState<{
-    isSyncing: boolean;
-    lastSyncTime?: number;
-    lastSyncResult?: SyncResult;
-  }>({ isSyncing: false });
+  const [syncStatus, setSyncStatus] = useState<SyncStatusState>('idle');
   const [error, setError] = useState<Error | null>(null);
-  const [isBackingUp, setIsBackingUp] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
-  const [lastBackupTime, setLastBackupTime] = useState<number | null>(null);
+  const [conflictDetails, setConflictDetails] = useState<{ driveModified: number; localModified: number } | null>(null);
+  const [lastSuccessfulSync, setLastSuccessfulSync] = useState<number | null>(() => {
+    // Initialize from localStorage
+    const storedTime = localStorage.getItem(LAST_SYNC_TIMESTAMP_KEY);
+    return storedTime ? parseInt(storedTime, 10) : null;
+  });
 
-  // --- GAPI Initialization Effect ---
+  const backupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isDbDirtyRef = useRef<boolean>(false); // Track if DB changed since last sync
+
+  // --- GAPI Initialization & Initial Sync Check --- 
   useEffect(() => {
     const initGapiClient = async () => {
       // Basic check for placeholder credentials
@@ -83,13 +91,30 @@ export function useGoogleDriveSync() {
         console.log('GAPI client initialized.');
 
         const googleAuth = gapi.auth2.getAuthInstance();
-        setAuthState({ isAuthenticated: googleAuth.isSignedIn.get() });
+        const currentAuthStatus = googleAuth.isSignedIn.get();
+        setAuthState({ isAuthenticated: currentAuthStatus });
 
-        googleAuth.isSignedIn.listen((isSignedIn) => {
+        // Perform initial check only if authenticated
+        if (currentAuthStatus) {
+          await checkInitialSyncState();
+        }
+
+        googleAuth.isSignedIn.listen(async (isSignedIn) => {
           setAuthState({ isAuthenticated: isSignedIn });
-          if (!isSignedIn) {
-            setSyncState({ isSyncing: false });
+          if (isSignedIn) {
             setError(null);
+            setSyncStatus('idle');
+            await checkInitialSyncState(); // Check sync state on sign-in
+          } else {
+            // Reset state on sign out
+            setSyncStatus('idle');
+            setError(null);
+            setConflictDetails(null);
+            isDbDirtyRef.current = false;
+            if (backupTimeoutRef.current) {
+              clearTimeout(backupTimeoutRef.current);
+              backupTimeoutRef.current = null;
+            }
           }
         });
 
@@ -98,12 +123,43 @@ export function useGoogleDriveSync() {
         let message = 'Failed to initialize Google API Client. Sync unavailable.';
         if (err.details) message += ` Details: ${err.details}`;
         setError(new Error(message));
+        setSyncStatus('error');
       }
     };
 
     initGapiClient();
 
-  }, []); 
+  }, []);
+
+  // --- Database Change Listener & Auto-Backup --- 
+  useEffect(() => {
+    const handleDbChange = () => {
+      console.log('Detected DB change.');
+      isDbDirtyRef.current = true; // Mark DB as dirty
+      // Clear any existing backup timeout
+      if (backupTimeoutRef.current) {
+        clearTimeout(backupTimeoutRef.current);
+      }
+      // Set a new timeout if authenticated and no conflict
+      if (authState.isAuthenticated && !conflictDetails) {
+        console.log(`Scheduling auto-backup in ${DEBOUNCE_DELAY}ms`);
+        backupTimeoutRef.current = setTimeout(() => {
+          console.log('Debounce timer expired, triggering auto-backup.');
+          backupDatabaseToDrive(); // Trigger the backup
+        }, DEBOUNCE_DELAY);
+      }
+    };
+
+    window.addEventListener('studypal-db-changed', handleDbChange);
+
+    // Cleanup listener on unmount
+    return () => {
+      window.removeEventListener('studypal-db-changed', handleDbChange);
+      if (backupTimeoutRef.current) {
+        clearTimeout(backupTimeoutRef.current);
+      }
+    };
+  }, [authState.isAuthenticated, conflictDetails]); // Re-run if auth or conflict state changes
 
   // --- Auth Functions (signIn, signOut, isAuthenticated) ---
 
@@ -116,8 +172,10 @@ export function useGoogleDriveSync() {
       return;
     }
     try {
-      setError(null); // Clear previous errors
+      setError(null);
+      setSyncStatus('idle');
       await gapi.auth2.getAuthInstance().signIn();
+      // Listener will handle the rest
     } catch (err: any) {
       console.error('Google Sign-In error:', err);
       if (err.error === 'popup_closed_by_user') {
@@ -126,6 +184,7 @@ export function useGoogleDriveSync() {
          setError(new Error('Access denied. Please grant permission to Google Drive AppData.'));
       } else {
         setError(err instanceof Error ? err : new Error('Failed to sign in with Google.'));
+        setSyncStatus('error');
       }
     }
   }, [isGapiLoaded]);
@@ -137,9 +196,11 @@ export function useGoogleDriveSync() {
     if (!isGapiLoaded || !gapi.auth2?.getAuthInstance()) return;
     try {
       await gapi.auth2.getAuthInstance().signOut();
+      // Listener will handle state reset
     } catch (err) {
       console.error('Google Sign-Out error:', err);
       setError(err instanceof Error ? err : new Error('Failed to sign out.'));
+      setSyncStatus('error');
     }
   }, [isGapiLoaded]);
 
@@ -196,118 +257,6 @@ export function useGoogleDriveSync() {
   }, [isAuthenticated, signOut]); // Dependencies
 
   /**
-   * Create or update a file/folder in Google Drive App Data folder using gapi
-   */
-  const createOrUpdateDriveItem = useCallback(async (
-    item: { id: string; name: string; content?: string | Blob; mimeType: string; parentDriveId?: string; driveId?: string },
-    typePrefix: 'subject' | 'chapter' | 'material'
-  ): Promise<gapi.client.drive.File> => {
-    const fileName = `${typePrefix}_${item.id}`;
-    const parentId = item.parentDriveId || 'appDataFolder';
-
-    const metadata: gapi.client.drive.File = {
-      name: fileName,
-      mimeType: item.mimeType,
-      parents: [parentId],
-    };
-
-    if (item.driveId) {
-      // --- UPDATE --- 
-      let updatedFile: gapi.client.drive.File | undefined;
-
-      // 1. Update metadata (name)
-      try {
-        const response = await driveApiAction(() => 
-          gapi.client.drive.files.update({
-            fileId: item.driveId!,
-            resource: { name: fileName }, 
-            fields: 'id, name, mimeType, modifiedTime, parents',
-          })
-        );
-        updatedFile = response.result;
-      } catch (metaErr) {
-        console.error(`Failed to update metadata for ${item.driveId}:`, metaErr);
-        throw metaErr; 
-      }
-
-      // 2. Update content (media) if it exists and it's not a folder
-      if (item.content && item.mimeType !== 'application/vnd.google-apps.folder') {
-        try {
-          // Use gapi.client.request for direct upload
-          const response = await driveApiAction(() => 
-            gapi.client.request({
-              path: `/upload/drive/v3/files/${item.driveId}`,
-              method: 'PATCH',
-              params: { uploadType: 'media', fields: 'id, name, mimeType, modifiedTime, parents' },
-              body: item.content, 
-            })
-          );
-          updatedFile = response.result as gapi.client.drive.File;
-        } catch (mediaErr) {
-          console.error(`Failed to update media for ${item.driveId}:`, mediaErr);
-          throw mediaErr; 
-        }
-      }
-      
-      if (!updatedFile) throw new Error('Update failed, no response data.');
-      return updatedFile;
-
-    } else {
-      // --- CREATE --- 
-      if (item.content && item.mimeType !== 'application/vnd.google-apps.folder') {
-        // Multipart Create
-        const boundary = '-------314159265358979323846'; // Define boundary here
-        const delimiter = "\r\n--" + boundary + "\r\n";
-        const close_delim = "\r\n--" + boundary + "--";
-
-        const contentType = item.content instanceof Blob ? item.content.type : 'text/plain';
-        const metadataStr = JSON.stringify(metadata); // Use defined metadata
-        const contentStr = item.content instanceof Blob ? await item.content.text() : item.content;
-
-        const multipartRequestBody = 
-            delimiter +
-            'Content-Type: application/json\r\n\r\n' +
-            metadataStr +
-            delimiter +
-            'Content-Type: ' + contentType + '\r\n\r\n' +
-            contentStr +
-            close_delim;
-
-        const response = await driveApiAction(() => 
-          gapi.client.request({
-            path: '/upload/drive/v3/files',
-            method: 'POST',
-            params: { uploadType: 'multipart', fields: 'id, name, mimeType, modifiedTime, parents' },
-            headers: { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
-            body: multipartRequestBody
-          })
-        );
-        return response.result as gapi.client.drive.File;
-
-      } else {
-        // Simple Create (metadata only)
-        const response = await driveApiAction(() => 
-          gapi.client.drive.files.create({
-            resource: metadata, // Use defined metadata
-            fields: 'id, name, mimeType, modifiedTime, parents',
-          })
-        );
-        return response.result;
-      }
-    }
-  }, [driveApiAction]); // Dependency
-
-  /**
-   * Delete a file/folder from Google Drive using gapi
-   */
-  const deleteDriveItem = useCallback(async (driveId: string): Promise<void> => {
-    await driveApiAction(() => 
-      gapi.client.drive.files.delete({ fileId: driveId })
-    );
-    // No result needed
-  }, [driveApiAction]);
-
-  /**
    * Get file content from Google Drive using gapi
    */
   const getDriveFileContent = useCallback(async (fileId: string): Promise<Blob> => {
@@ -344,7 +293,7 @@ export function useGoogleDriveSync() {
   // --- Database Backup/Restore Logic --- 
 
   /**
-   * Finds the studypal.db.json file in the AppData folder.
+   * Finds the studypal.db.json file metadata in the AppData folder.
    */
   const findDbBackupFile = useCallback(async (): Promise<gapi.client.drive.File | null> => {
     try {
@@ -367,17 +316,29 @@ export function useGoogleDriveSync() {
 
   /**
    * Backs up the entire IndexedDB to studypal.db.json on Google Drive.
+   * Now updates sync status and timestamp.
    */
-  const backupDatabaseToDrive = useCallback(async () => {
+  const backupDatabaseToDrive = useCallback(async (isConflictResolution: boolean = false) => {
     if (!isAuthenticated()) throw new Error('Not authenticated');
-    setIsBackingUp(true);
+    // Prevent backup if already syncing or in conflict (unless resolving conflict)
+    if ((syncStatus === 'syncing_up' || syncStatus === 'syncing_down' || (syncStatus === 'conflict' && !isConflictResolution)) && !isConflictResolution) {
+      console.warn('Backup skipped: Already syncing or in conflict.');
+      return;
+    }
+    
+    // Clear any pending backup timeout
+    if (backupTimeoutRef.current) {
+        clearTimeout(backupTimeoutRef.current);
+        backupTimeoutRef.current = null;
+    }
+
+    setSyncStatus('syncing_up');
     setError(null);
-    setLastBackupTime(null);
+    // Don't clear lastSuccessfulSync here, update on success
 
     try {
       console.log('Starting database backup to Drive...');
-      // Use imported function
-      const dbJson = await exportDbToJson(); 
+      const dbJson = await exportDbToJson();
       const existingBackup = await findDbBackupFile();
       
       const blob = new Blob([dbJson], { type: DB_BACKUP_MIME_TYPE });
@@ -420,24 +381,34 @@ export function useGoogleDriveSync() {
       );
 
       const backupTime = new Date(response.result.modifiedTime || Date.now()).getTime();
-      setLastBackupTime(backupTime);
+      // Update local storage and state on successful backup
+      localStorage.setItem(LAST_SYNC_TIMESTAMP_KEY, backupTime.toString());
+      setLastSuccessfulSync(backupTime);
+      isDbDirtyRef.current = false; // Mark DB as clean after successful backup
+      setSyncStatus('up_to_date');
+      setConflictDetails(null); // Clear conflict on successful backup
       console.log('Database backup successful!', response.result);
       
     } catch (err: any) {
       console.error('Database backup failed:', err);
       setError(err instanceof Error ? err : new Error('Database backup failed.'));
-      throw err; // Re-throw for UI handling
-    } finally {
-      setIsBackingUp(false);
+      setSyncStatus('error');
+      // Don't re-throw here, let UI react to error state
     }
-  }, [isAuthenticated, findDbBackupFile, driveApiAction]); 
+  }, [isAuthenticated, exportDbToJson, findDbBackupFile, driveApiAction, syncStatus]); // Added syncStatus dependency
 
   /**
    * Restores the IndexedDB from studypal.db.json on Google Drive.
+   * Now updates sync status and timestamp.
    */
-  const restoreDatabaseFromDrive = useCallback(async () => {
+  const restoreDatabaseFromDrive = useCallback(async (isConflictResolution: boolean = false) => {
     if (!isAuthenticated()) throw new Error('Not authenticated');
-    setIsRestoring(true);
+    // Prevent restore if already syncing (unless resolving conflict)
+    if ((syncStatus === 'syncing_up' || syncStatus === 'syncing_down') && !isConflictResolution) {
+      console.warn('Restore skipped: Already syncing.');
+      return;
+    }
+    setSyncStatus('syncing_down');
     setError(null);
 
     try {
@@ -453,573 +424,126 @@ export function useGoogleDriveSync() {
 
       await importDbFromJson(dbJson);
       
-      // Optionally: Refresh parts of the app state after restore
+      const driveModifiedTime = new Date(backupFile.modifiedTime || Date.now()).getTime();
+      // Update local storage and state on successful restore
+      localStorage.setItem(LAST_SYNC_TIMESTAMP_KEY, driveModifiedTime.toString());
+      setLastSuccessfulSync(driveModifiedTime);
+      isDbDirtyRef.current = false; // Mark DB as clean after successful restore
+      setSyncStatus('up_to_date');
+      setConflictDetails(null); // Clear conflict on successful restore
       console.log('Database restore successful!');
-      // Maybe trigger a page reload or state refresh here if needed
-      // window.location.reload(); // Force reload might be simplest
+      // Consider prompting user to reload or using a state management library to refresh data
+      window.location.reload(); 
 
     } catch (err: any) {
       console.error('Database restore failed:', err);
       setError(err instanceof Error ? err : new Error('Database restore failed.'));
-      throw err; // Re-throw for UI handling
-    } finally {
-      setIsRestoring(false);
+      setSyncStatus('error');
+      // Don't re-throw here
     }
-  }, [isAuthenticated, findDbBackupFile, getDriveFileContent]); 
+  }, [isAuthenticated, findDbBackupFile, getDriveFileContent, importDbFromJson, syncStatus]); // Added syncStatus dependency
 
+  // --- Initial Sync Check & Conflict Detection --- 
+  const checkInitialSyncState = useCallback(async () => {
+    // Set status immediately
+    setSyncStatus('checking'); 
 
-
-  // --- Item-by-Item Sync Logic (addToSyncQueue, syncItemToDrive, processSyncQueue, parseDriveFileName, updateLocalItem, pullFromDrive, syncWithDrive, resolveConflict) ---
-  /**
-   * Add an item to the sync queue
-   */
-  const addToSyncQueue = useCallback(async (
-    storeType: StoreNames,
-    itemId: string,
-    action: 'create' | 'update' | 'delete'
-  ): Promise<SyncQueueItem> => {
-    try {
-      const db = await getDb();
-      const queueItem: SyncQueueItem = {
-        id: uuidv4(),
-        storeType,
-        itemId,
-        action,
-        timestamp: Date.now(),
-        retryCount: 0
-      };
-      await db.put(StoreNames.SYNC_QUEUE, queueItem);
-      return queueItem;
-    } catch (err) {
-      console.error('Error adding to sync queue:', err);
-      throw err instanceof Error ? err : new Error('Failed to add to sync queue');
-    }
-  }, []); // No external dependencies needed
-
-  /**
-   * Sync a single item (Subject, Chapter, Material) to Google Drive using gapi
-   */
-  const syncItemToDrive = useCallback(async (
-    item: Subject | Chapter | Material,
-    storeName: StoreNames,
-    action: 'create' | 'update' | 'delete'
-  ): Promise<void> => {
-    const db = await getDb();
-
-    if (action === 'delete') {
-      if (item.driveId) {
-        // Ensure item exists and has driveId before attempting delete
-        await deleteDriveItem(item.driveId);
-      }
-      // If action is delete, we assume local deletion is handled elsewhere or confirmed after sync
-      return;
-    }
-
-    // Ensure item exists for create/update
-    if (!item) {
-        console.warn(`SyncItemToDrive called for ${action} but item is missing.`);
+    if (!isAuthenticated()) {
+        setSyncStatus('idle'); // Reset if not authenticated
         return;
     }
 
-    let parentDriveId: string | undefined = undefined;
-    let typePrefix: 'subject' | 'chapter' | 'material';
-    let content: string | Blob | undefined;
-    let mimeType: string;
+    // setError(null); // Error is reset within the try block if needed
+    setConflictDetails(null);
 
-    // Determine parent, type, content based on storeName (Same logic as before)
-    if (storeName === StoreNames.SUBJECTS) {
-      typePrefix = 'subject';
-      mimeType = 'application/vnd.google-apps.folder';
-      parentDriveId = 'appDataFolder';
-    } else if (storeName === StoreNames.CHAPTERS) {
-      const chapter = item as Chapter;
-      const parentSubject = await db.get(StoreNames.SUBJECTS, chapter.subjectId);
-      if (!parentSubject?.driveId) throw new Error(`Parent subject ${chapter.subjectId} not found or not synced.`);
-      parentDriveId = parentSubject.driveId;
-      typePrefix = 'chapter';
-      mimeType = 'application/vnd.google-apps.folder';
-    } else if (storeName === StoreNames.MATERIALS) {
-      const material = item as Material;
-      const parentChapter = await db.get(StoreNames.CHAPTERS, material.chapterId);
-      if (!parentChapter?.driveId) throw new Error(`Parent chapter ${material.chapterId} not found or not synced.`);
-      parentDriveId = parentChapter.driveId;
-      typePrefix = 'material';
-      
-      // Handle material content and mimeType (Same logic)
-      if (material.content instanceof Blob) {
-        content = material.content;
-        mimeType = material.content.type || 'application/octet-stream'; 
-      } else if (typeof material.content === 'string') {
-        content = material.content;
-        switch(material.type) {
-          case MaterialType.MARKDOWN: mimeType = 'text/markdown'; break;
-          case MaterialType.LINK: mimeType = 'application/json'; 
-                             content = JSON.stringify({ url: material.contentUrl || material.content }); break; 
-          default: mimeType = 'text/plain';
-        }
-      } else if (material.contentUrl && material.type === MaterialType.LINK) {
-         mimeType = 'application/json';
-         content = JSON.stringify({ url: material.contentUrl });
-      } else if (material.type === MaterialType.PDF || material.type === MaterialType.IMAGE || material.type === MaterialType.VIDEO) {
-         mimeType = 'application/json'; 
-         content = JSON.stringify({ name: material.name, type: material.type, localRef: 'placeholder' }); 
-      }
-       else {
-        mimeType = 'application/json';
-        content = JSON.stringify({ name: material.name, type: material.type });
-      }
-    } else {
-      throw new Error(`Unsupported store name for sync: ${storeName}`);
-    }
+    try {
+      setError(null); // Reset error at the start of the check
+      console.log('Checking initial sync state...');
+      const driveFile = await findDbBackupFile();
+      const localLastSync = lastSuccessfulSync;
 
-    // Perform the create/update operation using gapi helpers
-    const driveFile = await createOrUpdateDriveItem({
-      id: item.id,
-      name: item.name, 
-      content: content,
-      mimeType: mimeType,
-      parentDriveId: parentDriveId,
-      driveId: item.driveId,
-    }, typePrefix);
-
-    // Update local item (Same logic)
-    const updatedItem = {
-      ...item,
-      driveId: driveFile.id!,
-      syncStatus: SyncStatus.SYNCED,
-      lastModified: Date.now(), // Update local timestamp on successful sync
-      ...(storeName === StoreNames.MATERIALS && { driveLastModified: new Date(driveFile.modifiedTime || '').getTime() }),
-    };
-
-    await db.put(storeName, updatedItem);
-
-  }, [createOrUpdateDriveItem, deleteDriveItem]); // Dependencies
-
-  /**
-   * Process items in the sync queue (Push local changes)
-   */
-  const processSyncQueue = useCallback(async (): Promise<SyncResult> => {
-    // Use the hook's isAuthenticated function
-    if (!isAuthenticated()) throw new Error('Not authenticated');
-    
-    const db = await getDb();
-    const queueItems = await db.getAllFromIndex(StoreNames.SYNC_QUEUE, 'by-timestamp');
-    
-    let successful = 0, failed = 0, conflicts = 0;
-
-    for (const queueItem of queueItems) {
-      try {
-        const item = await db.get(queueItem.storeType, queueItem.itemId);
-        
-        // Handle item deletion before sync
-        if (!item && queueItem.action !== 'delete') {
-           console.warn(`Item ${queueItem.itemId} not found locally for sync action ${queueItem.action}. Removing from queue.`);
-           await db.delete(StoreNames.SYNC_QUEUE, queueItem.id);
-           continue; 
-        }
-        
-        // For delete action, we need driveId. If item exists, use its driveId.
-        // If item is already deleted locally, we can't get driveId easily. 
-        // Consider storing driveId in the queue item itself for deletions.
-        // For now, we proceed if item exists OR if it's a delete action (best effort)
-        const itemToSync = item || { id: queueItem.itemId, driveId: undefined }; // Minimal object if local is gone
-        
-        // Call syncItemToDrive - it handles the delete case internally
-        await syncItemToDrive(itemToSync as Subject | Chapter | Material, queueItem.storeType, queueItem.action);
-
-        // Remove from queue on success
-        await db.delete(StoreNames.SYNC_QUEUE, queueItem.id);
-        successful++;
-      } catch (err) {
-        console.error(`Error processing sync queue item ${queueItem.id} (${queueItem.storeType}/${queueItem.itemId}):`, err);
-        
-        // Retry logic (Same)
-        queueItem.retryCount += 1;
-        if (queueItem.retryCount >= 3) {
-          failed++;
-          try {
-            // Attempt to mark the original item as ERROR if it still exists
-            const originalItem = await db.get(queueItem.storeType, queueItem.itemId);
-            if (originalItem) {
-              await db.put(queueItem.storeType, { ...originalItem, syncStatus: SyncStatus.ERROR });
-            }
-          } catch (updateErr) { console.error('Error marking item as ERROR:', updateErr); }
-          // Remove from queue after max retries
-          await db.delete(StoreNames.SYNC_QUEUE, queueItem.id);
+      if (!driveFile) {
+        // No backup on Drive
+        if (isDbDirtyRef.current) {
+          // Local changes exist, trigger initial backup
+          console.log('No Drive backup found, local changes detected. Triggering initial backup.');
+          await backupDatabaseToDrive(); // This will set status to syncing_up then up_to_date/error
         } else {
-          // Update retry count in the queue
-          await db.put(StoreNames.SYNC_QUEUE, queueItem);
+          // No Drive backup, no local changes
+          console.log('No Drive backup found, no local changes.');
+          setSyncStatus('up_to_date'); 
         }
-      }
-    }
-    return { successful, failed, conflicts };
-  // Use the hook's syncItemToDrive and isAuthenticated
-  }, [isAuthenticated, syncItemToDrive]); 
-
-  /**
-   * Parse Drive file name (No changes needed)
-   */
-  const parseDriveFileName = (fileName: string): { type: 'subject' | 'chapter' | 'material' | null, id: string | null } => {
-    const match = fileName.match(/^(subject|chapter|material)_(.+)$/);
-    if (match) {
-      return { type: match[1] as 'subject' | 'chapter' | 'material', id: match[2] };
-    }
-    return { type: null, id: null };
-  };
-
-  /**
-   * Helper to update or create a local item based on Drive data
-   */
-  const updateLocalItem = async (
-    driveFile: gapi.client.drive.File,
-    localItem: Subject | Chapter | Material | undefined,
-    storeName: StoreNames,
-    parsedInfo: { type: 'subject' | 'chapter' | 'material'; id: string }, // Ensure non-null
-    parentItemId?: string
-  ): Promise<{ status: 'updated' | 'created' | 'conflict' | 'skipped' }> => {
-    const db = await getDb();
-    const driveLastModified = new Date(driveFile.modifiedTime || '').getTime();
-    const driveCreatedTime = new Date(driveFile.createdTime || '').getTime();
-
-    if (localItem) {
-      // Item exists locally (Conflict/Update logic - Same as before)
-      if (localItem.syncStatus === SyncStatus.PENDING) {
-        await db.put(storeName, { ...localItem, syncStatus: SyncStatus.CONFLICT });
-        return { status: 'conflict' };
+        return;
       }
 
-      const localLastModifiedTime = (storeName === StoreNames.MATERIALS && (localItem as Material).driveLastModified)
-                                    ? (localItem as Material).driveLastModified! 
-                                    : localItem.lastModified;
+      // Backup exists on Drive
+      const driveModifiedTime = new Date(driveFile.modifiedTime || 0).getTime();
 
-      if (driveLastModified > localLastModifiedTime) {
-         // Remote is newer (Update logic - Same, uses getDriveFileContent)
-         let updatedLocalItem = { ...localItem };
-         
-         if (storeName === StoreNames.MATERIALS) {
-            const material = localItem as Material;
-            try {
-               // Ensure driveFile.id is not null/undefined
-               if (!driveFile.id) throw new Error('Drive file ID missing for content fetch');
-               const blob = await getDriveFileContent(driveFile.id);
-               
-
-               // Parse content (Same logic)
-               let parsedContent: string | Blob | undefined = blob;
-               let parsedContentUrl: string | undefined;
-               let parsedType: MaterialType = material.type;
-               let parsedName = material.name;
-
-               if (driveFile.mimeType === 'application/json') {
-                 try {
-                    const metadata = JSON.parse(await blob.text());
-                    parsedName = metadata.name || parsedName;
-                    parsedType = metadata.type || parsedType;
-                    parsedContentUrl = metadata.url || metadata.contentUrl;
-                    if(parsedContentUrl || metadata.localRef) parsedContent = undefined; 
-                 } catch (e) { console.warn("Failed to parse material JSON metadata:", e); }
-               } else if (driveFile.mimeType?.startsWith('text/')) {
-                 parsedContent = await blob.text();
-               } 
-
-               updatedLocalItem = {
-                  ...material,
-                  name: parsedName,
-                  type: parsedType,
-                  content: parsedContent,
-                  contentUrl: parsedContentUrl,
-                  lastModified: driveLastModified,
-                  driveId: driveFile.id!, // Ensure non-null
-                  driveLastModified: driveLastModified,
-                  syncStatus: SyncStatus.SYNCED,
-               };
-            } catch (fetchErr) {
-               console.error(`Failed to fetch content for material ${driveFile.id}:`, fetchErr);
-               return { status: 'skipped' };
-            }
-         } else {
-            // Subjects/chapters (Same)
-             updatedLocalItem = {
-               ...localItem,
-               lastModified: driveLastModified,
-               driveId: driveFile.id!, // Ensure non-null
-               syncStatus: SyncStatus.SYNCED,
-             };
-         }
-         
-         await db.put(storeName, updatedLocalItem);
-         return { status: 'updated' };
-
-      } else {
-        // Local is up-to-date (Same)
-        if (localItem.driveId !== driveFile.id) {
-          await db.put(storeName, { ...localItem, driveId: driveFile.id! });
-          return { status: 'updated' };
-        }
-        return { status: 'skipped' };
-      }
-
-    } else {
-      // Item does not exist locally - Create it (Same logic, uses getDriveFileContent)
-      let newItem: Subject | Chapter | Material;
-      const baseProps = {
-        id: parsedInfo.id,
-        name: driveFile.name || `Sync-${parsedInfo.type}-${parsedInfo.id}`, // Use drive name if available
-        createdAt: driveCreatedTime || Date.now(),
-        lastModified: driveLastModified || Date.now(),
-        driveId: driveFile.id!, // Ensure non-null
-        syncStatus: SyncStatus.SYNCED,
-        driveLastModified: driveLastModified,
-      };
-
-      try {
-        if (storeName === StoreNames.SUBJECTS) {
-          newItem = { ...baseProps, color: undefined } as Subject; 
-        } else if (storeName === StoreNames.CHAPTERS) {
-          if (!parentItemId) throw new Error('Parent subject ID missing for chapter creation');
-          newItem = { ...baseProps, subjectId: parentItemId, order: undefined } as Chapter;
-        } else if (storeName === StoreNames.MATERIALS) {
-          if (!parentItemId) throw new Error('Parent chapter ID missing for material creation');
-          if (!driveFile.id) throw new Error('Drive file ID missing for content fetch');
-          const blob = await getDriveFileContent(driveFile.id);
-          
-          // Parse content (Same logic)
-          let parsedContent: string | Blob | undefined = blob;
-          let parsedContentUrl: string | undefined;
-          let parsedType: MaterialType = MaterialType.MARKDOWN; 
-          let parsedName = baseProps.name;
-
-          if (driveFile.mimeType === 'application/json') {
-             try {
-                const metadata = JSON.parse(await blob.text());
-                parsedName = metadata.name || parsedName;
-                parsedType = metadata.type || parsedType;
-                parsedContentUrl = metadata.url || metadata.contentUrl;
-                if(parsedContentUrl || metadata.localRef) parsedContent = undefined; 
-             } catch (e) { console.warn("Failed to parse material JSON metadata:", e); }
-          } else if (driveFile.mimeType?.startsWith('text/')) {
-             parsedContent = await blob.text();
-             parsedType = MaterialType.MARKDOWN; 
-          } else {
-             if(driveFile.mimeType?.startsWith('image/')) parsedType = MaterialType.IMAGE;
-             else if(driveFile.mimeType === 'application/pdf') parsedType = MaterialType.PDF;
-             // Add more specific type handling based on mimeType if needed
-          }
-
-          newItem = {
-            ...baseProps,
-            name: parsedName,
-            chapterId: parentItemId,
-            type: parsedType,
-            content: parsedContent,
-            contentUrl: parsedContentUrl,
-          } as Material;
+      if (!localLastSync) {
+        // Have Drive backup, but never synced before (or cleared local storage)
+        console.log('Drive backup found, but no local sync history. Prompting user.');
+        setConflictDetails({ driveModified: driveModifiedTime, localModified: Date.now() }); // Use current time as placeholder for local
+        setSyncStatus('conflict');
+      } else if (driveModifiedTime > localLastSync + 1000) { // Add buffer for clock skew
+        // Drive file is newer than last sync
+        if (isDbDirtyRef.current) {
+          // Conflict: Both Drive and local have changed since last sync
+          console.log('Conflict detected: Drive backup and local DB both changed since last sync.');
+          setConflictDetails({ driveModified: driveModifiedTime, localModified: Date.now() }); // Use current time
+          setSyncStatus('conflict');
         } else {
-          throw new Error(`Unsupported store name: ${storeName}`);
+          // No local changes, Drive is newer -> Prompt user (safest default)
+          console.log('Drive backup is newer than last sync, no local changes detected. Prompting user.');
+          setConflictDetails({ driveModified: driveModifiedTime, localModified: localLastSync });
+          setSyncStatus('conflict');
         }
-
-        await db.put(storeName, newItem);
-        return { status: 'created' };
-      } catch (createErr) {
-        console.error(`Failed to create local item ${parsedInfo.id} from Drive:`, createErr);
-        return { status: 'skipped' };
-      }
-    }
-  };
-
-  /**
-   * Pull changes from Google Drive and update local database
-   */
-  const pullFromDrive = useCallback(async (): Promise<SyncResult> => {
-    // Use hook's isAuthenticated
-    if (!isAuthenticated()) throw new Error('Not authenticated');
-    
-    // Use hook's setSyncState
-    setSyncState(prev => ({ ...prev, isSyncing: true }));
-    const db = await getDb();
-    let successful = 0, failed = 0, conflicts = 0;
-
-    try {
-      const processDriveLevel = async (parentDriveId: string, parentLocalId?: string) => {
-        const driveItems = await listDriveItems(parentDriveId);
-        
-        for (const driveItem of driveItems) {
-          // Basic validation of driveItem
-          if (!driveItem.id || !driveItem.name) continue;
-          
-          const parsedInfo = parseDriveFileName(driveItem.name);
-          // Ensure type and id are valid
-          if (!parsedInfo.type || !parsedInfo.id) continue;
-
-          let storeName: StoreNames;
-          let currentParentId: string | undefined;
-
-          switch (parsedInfo.type) {
-            case 'subject': storeName = StoreNames.SUBJECTS; break;
-            case 'chapter': storeName = StoreNames.CHAPTERS; currentParentId = parentLocalId; break;
-            case 'material': storeName = StoreNames.MATERIALS; currentParentId = parentLocalId; break;
-            default: continue; 
-          }
-
-          try {
-            const localItem = await db.get(storeName, parsedInfo.id);
-            // Pass validated parsedInfo
-            const result = await updateLocalItem(driveItem, localItem, storeName, parsedInfo as { type: 'subject' | 'chapter' | 'material'; id: string }, currentParentId);
-
-            if (result.status === 'conflict') conflicts++;
-            else if (result.status !== 'skipped') successful++;
-
-            // Recurse if folder and no conflict
-            if (driveItem.mimeType === 'application/vnd.google-apps.folder' && result.status !== 'conflict') {
-              await processDriveLevel(driveItem.id, parsedInfo.id);
-            }
-          } catch (itemErr) {
-            console.error(`Error processing ${parsedInfo.type} ${driveItem.name}:`, itemErr);
-            failed++;
-          }
-        }
-      };
-
-      await processDriveLevel('appDataFolder');
-
-      const syncResult = { successful, failed, conflicts };
-      // Use hook's setSyncState
-      setSyncState(prev => ({ ...prev, isSyncing: false, lastSyncTime: Date.now(), lastSyncResult: syncResult }));
-      return syncResult;
-
-    } catch (err) {
-      console.error('Error pulling from Drive:', err);
-      // Use hook's setSyncState and setError
-      setSyncState(prev => ({ ...prev, isSyncing: false }));
-      setError(err instanceof Error ? err : new Error('Failed to pull from Drive'));
-      throw err;
-    }
-  // Use hook's listDriveItems and getDriveFileContent
-  }, [isAuthenticated, listDriveItems, getDriveFileContent]); 
-
-  /**
-   * Main sync function
-   */
-  const syncWithDrive = useCallback(async (): Promise<SyncResult> => {
-    // Use hook's isAuthenticated
-    if (!isAuthenticated()) {
-      throw new Error('Not authenticated');
-    }
-    
-    // Use hook's setSyncState and setError
-    setSyncState(prev => ({ ...prev, isSyncing: true, lastSyncResult: undefined, error: null }));
-    
-    try {
-      console.log("Sync: Starting push...");
-      // Use hook's processSyncQueue
-      const pushResult = await processSyncQueue();
-      console.log("Sync: Push finished.", pushResult);
-      
-      console.log("Sync: Starting pull...");
-      // Use hook's pullFromDrive
-      const pullResult = await pullFromDrive();
-      console.log("Sync: Pull finished.", pullResult);
-      
-      const combinedResult: SyncResult = {
-        successful: pushResult.successful + pullResult.successful,
-        failed: pushResult.failed + pullResult.failed,
-        conflicts: pushResult.conflicts + pullResult.conflicts 
-      };
-      
-      console.log("Sync: Completed.", combinedResult);
-      // Use hook's setSyncState
-      setSyncState({
-        isSyncing: false,
-        lastSyncTime: Date.now(),
-        lastSyncResult: combinedResult
-      });
-      
-      if (combinedResult.conflicts > 0) {
-         console.warn(`Sync finished with ${combinedResult.conflicts} conflicts.`);
-         // Use hook's setError
-         setError(new Error(`${combinedResult.conflicts} sync conflicts detected. Please resolve them.`));
-      }
-      
-      return combinedResult;
-    } catch (err) {
-      console.error('Error syncing with Drive:', err);
-      const syncError = err instanceof Error ? err : new Error('Failed to sync with Drive');
-      // Use hook's setSyncState and setError
-      setSyncState(prev => ({ ...prev, isSyncing: false }));
-      setError(syncError); 
-      throw syncError; 
-    }
-  // Use hook's processSyncQueue and pullFromDrive
-  }, [isAuthenticated, processSyncQueue, pullFromDrive]);
-
-  /**
-   * Resolve a sync conflict
-   */
-  const resolveConflict = useCallback(async (
-    storeType: StoreNames,
-    itemId: string,
-    resolution: 'local' | 'remote'
-  ): Promise<void> => {
-    const db = await getDb();
-    const item = await db.get(storeType, itemId);
-
-    if (!item) throw new Error(`Item ${itemId} not found in ${storeType}`);
-    if (item.syncStatus !== SyncStatus.CONFLICT) {
-       console.warn(`Item ${itemId} is not in conflict state.`);
-       return; 
-    }
-
-    try {
-      if (resolution === 'local') {
-        await db.put(storeType, { ...item, syncStatus: SyncStatus.PENDING, lastModified: Date.now() });
-        // Use hook's addToSyncQueue
-        await addToSyncQueue(storeType, itemId, item.driveId ? 'update' : 'create');
-        console.log(`Conflict resolved for ${itemId}: Kept local version. Will sync on next cycle.`);
+      } else if (isDbDirtyRef.current && localLastSync >= driveModifiedTime) {
+        // Drive is not newer, but local has changed -> Safe to backup
+        console.log('Local DB changed since last sync, Drive backup is not newer. Triggering backup.');
+        await backupDatabaseToDrive(); // This will set status to syncing_up then up_to_date/error
       } else {
-        // Mark as SYNCED temporarily to avoid re-conflict during pull
-        await db.put(storeType, { ...item, syncStatus: SyncStatus.SYNCED }); 
-        console.log(`Conflict resolved for ${itemId}: Keeping remote version. Triggering pull...`);
-        // Use hook's pullFromDrive
-        await pullFromDrive(); 
-         console.log(`Conflict resolved for ${itemId}: Pull finished.`);
+        // Drive is not newer, local hasn't changed -> Up to date
+        console.log('Local DB and Drive backup are in sync.');
+        setSyncStatus('up_to_date');
       }
-       // Use hook's error state
-       if (error?.message.includes('sync conflicts detected')) {
-          // Use hook's setError
-          setError(null);
-       }
-    } catch (err) {
-      console.error(`Error resolving conflict for ${itemId}:`, err);
-      // Revert status on error
-      await db.put(storeType, { ...item, syncStatus: SyncStatus.CONFLICT }); 
-      throw err instanceof Error ? err : new Error('Failed to resolve conflict');
+
+    } catch (err: any) {
+      console.error('Error during initial sync check:', err);
+      setError(err instanceof Error ? err : new Error('Failed to check sync status.'));
+      setSyncStatus('error');
     }
-  // Use hook's addToSyncQueue, pullFromDrive, and error state
-  }, [addToSyncQueue, pullFromDrive, error]);
+  }, [isAuthenticated, findDbBackupFile, lastSuccessfulSync, backupDatabaseToDrive, restoreDatabaseFromDrive]); // Dependencies look correct
+
+  // --- Conflict Resolution --- 
+  const resolveConflict = useCallback(async (resolution: ConflictResolution) => {
+    if (syncStatus !== 'conflict' || !resolution) return;
+
+    console.log(`Attempting to resolve conflict using: ${resolution}`);
+    setConflictDetails(null); // Clear conflict details while resolving
+
+    if (resolution === 'drive') {
+      await restoreDatabaseFromDrive(true); // Pass flag to bypass sync status check
+    } else if (resolution === 'local') {
+      await backupDatabaseToDrive(true); // Pass flag to bypass sync status check
+    }
+    // State (syncStatus, error) will be updated by the backup/restore functions
+  }, [syncStatus, backupDatabaseToDrive, restoreDatabaseFromDrive]);
 
   // Return the hook's state and functions
   return {
     isGapiLoaded,
     authState,
-    syncState, // For item-by-item sync status
+    syncStatus, // Current sync status
     error,
+    conflictDetails, // Details needed for conflict UI
+    lastSuccessfulSync, // Timestamp of last successful operation
     isAuthenticated: isAuthenticated(),
     signIn,
     signOut,
-    
-    // Item-by-item sync functions
-    syncWithDrive,
-    pullFromDrive,
-    processSyncQueue,
-    resolveConflict,
-    addToSyncQueue,
-
-    // Full DB Backup/Restore functions & state
-    isBackingUp,
-    isRestoring,
-    lastBackupTime,
-    backupDatabaseToDrive,
-    restoreDatabaseFromDrive,
-    findDbBackupFile, // Expose if needed to check for backup existence in UI
+    resolveConflict, // Function to call from conflict resolution UI
+    // Expose backup/restore if needed for manual import/export triggers
+    backupDatabaseToDrive, 
+    restoreDatabaseFromDrive, 
+    // Potentially remove isBackingUp, isRestoring if syncStatus covers it
   };
 }

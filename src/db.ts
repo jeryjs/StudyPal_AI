@@ -1,13 +1,13 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { 
-  Subject, 
-  Chapter, 
-  Material, 
-  SyncStatus, 
-  StoreNames,
-  SyncQueueItem,
-  MaterialType
-} from './types/db.types'; // Ensure correct path
+import {
+	Subject,
+	Chapter,
+	Material,
+	SyncStatus,
+	StoreNames,
+	SyncQueueItem,
+	MaterialType
+} from './types/db.types';
 
 /**
  * Application database name.
@@ -33,7 +33,7 @@ export interface StudyPalDB extends DBSchema {
 
 // Type for DB export format
 type DbExport = {
-  [key in StoreNames]?: any[];
+	[key in StoreNames]?: any[];
 };
 
 // Singleton database connection
@@ -139,84 +139,72 @@ export async function closeDb(): Promise<void> {
  * Generic database operations that can be used by any store.
  */
 export class DBStore<T> {
-	constructor(private storeName: StoreNames) {}
+	constructor(private storeName: StoreNames) { }
+
+	// Helper to dispatch change event
+	private dispatchChangeEvent() {
+		window.dispatchEvent(new Event('studypal-db-changed'));
+	}
 
 	/**
 	 * Get a value by key from the store.
 	 */
 	async get(key: string): Promise<T | undefined> {
-		try {
-			const db = await getDb();
-			return db.get(this.storeName, key);
-		} catch (error) {
-			console.error(`Error getting ${key} from ${this.storeName}:`, error);
-			return undefined;
-		}
+		const db = await getDb();
+		return db.get(this.storeName, key);
 	}
 
 	/**
-	 * Put a value with the given key into the store.
+	 * Set a value by key in the store.
 	 */
-	async set(key: string, value: T): Promise<string> {
-		try {
-			const db = await getDb();
-			return await db.put(this.storeName, value, key);
-		} catch (error) {
-			console.error(`Error setting ${key} in ${this.storeName}:`, error);
-			throw error;
-		}
+	async set(key: string, value: T): Promise<void> {
+		const db = await getDb();
+		await db.put(this.storeName, value, key);
+		this.dispatchChangeEvent(); // Dispatch after successful put
+	}
+
+	/**
+	 * Get all values from the store.
+	 */
+	async getAll(): Promise<T[]> {
+		const db = await getDb();
+		return db.getAll(this.storeName);
+	}
+
+	/**
+	 * Get all keys from the store.
+	 */
+	async getAllKeys(): Promise<string[]> {
+		const db = await getDb();
+		// Type assertion needed as IDBPDatabase types might not perfectly match
+		return (await db.getAllKeys(this.storeName)) as string[];
 	}
 
 	/**
 	 * Delete a value by key from the store.
 	 */
 	async delete(key: string): Promise<void> {
-		try {
-			const db = await getDb();
-			await db.delete(this.storeName, key);
-		} catch (error) {
-			console.error(`Error deleting ${key} from ${this.storeName}:`, error);
-			throw error;
-		}
+		const db = await getDb();
+		await db.delete(this.storeName, key);
+		this.dispatchChangeEvent(); // Dispatch after successful delete
 	}
 
 	/**
-	 * Get all keys in the store.
-	 */
-	async getAllKeys(): Promise<string[]> {
-		try {
-			const db = await getDb();
-			return (await db.getAllKeys(this.storeName)) as string[];
-		} catch (error) {
-			console.error(`Error getting all keys from ${this.storeName}:`, error);
-			return [];
-		}
-	}
-
-	/**
-	 * Get all values in the store.
-	 */
-	async getAll(): Promise<T[]> {
-		try {
-			const db = await getDb();
-			return await db.getAll(this.storeName);
-		} catch (error) {
-			console.error(`Error getting all values from ${this.storeName}:`, error);
-			return [];
-		}
-	}
-
-	/**
-	 * Clear all data in the store.
+	 * Clear all values from the store.
 	 */
 	async clear(): Promise<void> {
-		try {
-			const db = await getDb();
-			await db.clear(this.storeName);
-		} catch (error) {
-			console.error(`Error clearing ${this.storeName}:`, error);
-			throw error;
-		}
+		const db = await getDb();
+		await db.clear(this.storeName);
+		this.dispatchChangeEvent(); // Dispatch after successful clear
+	}
+
+	/**
+	 * Put a value into the store (useful when key is part of the value or using key generator).
+	 */
+	async put(value: T, key?: string): Promise<void> {
+		const db = await getDb();
+		await db.put(this.storeName, value, key);
+		this.dispatchChangeEvent(); // Dispatch after successful put
 	}
 }
 
@@ -226,104 +214,104 @@ export class DBStore<T> {
  * Exports all data from specified IndexedDB stores to a JSON object.
  */
 export const exportDbToJson = async (): Promise<string> => {
-  const db = await getDb();
-  const exportData: DbExport = {};
-  const storesToExport: StoreNames[] = [
-    StoreNames.SETTINGS,
-    StoreNames.SUBJECTS,
-    StoreNames.CHAPTERS,
-    StoreNames.MATERIALS,
-  ];
+	const db = await getDb();
+	const exportData: DbExport = {};
+	const storesToExport: StoreNames[] = [
+		StoreNames.SETTINGS,
+		StoreNames.SUBJECTS,
+		StoreNames.CHAPTERS,
+		StoreNames.MATERIALS,
+	];
 
-  console.log('Starting DB export...');
-  for (const storeName of storesToExport) {
-    try {
-      if (storeName === StoreNames.SETTINGS) {
-        // Handle settings store: export as array of { key: string, value: any }
-        const allKeys = await db.getAllKeys(storeName);
-        // Explicitly type the array
-        const settingsData: { key: string; value: any }[] = []; 
-        for (const key of allKeys) {
-          const value = await db.get(storeName, key);
-          settingsData.push({ key, value });
-        }
-        exportData[storeName] = settingsData;
-        console.log(`Exported ${settingsData.length} items from ${storeName}`);
-      } else {
-        // Handle other stores (assuming they have an 'id' property as key)
-        const allItems = await db.getAll(storeName);
-        exportData[storeName] = allItems;
-        console.log(`Exported ${allItems.length} items from ${storeName}`);
-      }
-    } catch (err) {
-      console.error(`Error exporting store ${storeName}:`, err);
-      throw new Error(`Failed to export data from ${storeName}`);
-    }
-  }
-  console.log('DB export finished.');
-  return JSON.stringify(exportData);
+	console.log('Starting DB export...');
+	for (const storeName of storesToExport) {
+		try {
+			if (storeName === StoreNames.SETTINGS) {
+				// Handle settings store: export as array of { key: string, value: any }
+				const allKeys = await db.getAllKeys(storeName);
+				// Explicitly type the array
+				const settingsData: { key: string; value: any }[] = [];
+				for (const key of allKeys) {
+					const value = await db.get(storeName, key);
+					settingsData.push({ key, value });
+				}
+				exportData[storeName] = settingsData;
+				console.log(`Exported ${settingsData.length} items from ${storeName}`);
+			} else {
+				// Handle other stores (assuming they have an 'id' property as key)
+				const allItems = await db.getAll(storeName);
+				exportData[storeName] = allItems;
+				console.log(`Exported ${allItems.length} items from ${storeName}`);
+			}
+		} catch (err) {
+			console.error(`Error exporting store ${storeName}:`, err);
+			throw new Error(`Failed to export data from ${storeName}`);
+		}
+	}
+	console.log('DB export finished.');
+	return JSON.stringify(exportData);
 };
 
 /**
  * Imports data from a JSON object into IndexedDB, clearing existing data.
  */
 export const importDbFromJson = async (jsonString: string): Promise<void> => {
-  let importData: DbExport;
-  try {
-    importData = JSON.parse(jsonString);
-  } catch (err) {
-    console.error('Failed to parse backup JSON:', err);
-    throw new Error('Invalid backup file format.');
-  }
+	let importData: DbExport;
+	try {
+		importData = JSON.parse(jsonString);
+	} catch (err) {
+		console.error('Failed to parse backup JSON:', err);
+		throw new Error('Invalid backup file format.');
+	}
 
-  const db = await getDb();
-  const storesToImport: StoreNames[] = [
-    StoreNames.SETTINGS,
-    StoreNames.SUBJECTS,
-    StoreNames.CHAPTERS,
-    StoreNames.MATERIALS,
-    StoreNames.SYNC_QUEUE, // Clear sync queue on restore
-  ];
+	const db = await getDb();
+	const storesToImport: StoreNames[] = [
+		StoreNames.SETTINGS,
+		StoreNames.SUBJECTS,
+		StoreNames.CHAPTERS,
+		StoreNames.MATERIALS,
+		StoreNames.SYNC_QUEUE, // Clear sync queue on restore
+	];
 
-  console.log('Starting DB import...');
-  const tx = db.transaction(storesToImport, 'readwrite');
-  try {
-    for (const storeName of storesToImport) {
-      const store = tx.objectStore(storeName);
-      await store.clear(); // Clear existing data
-      console.log(`Cleared store: ${storeName}`);
-      
-      const itemsToImport = importData[storeName];
-      if (itemsToImport && Array.isArray(itemsToImport)) {
-        if (storeName === StoreNames.SETTINGS) {
-          // Handle settings store: import from array of { key: string, value: any }
-          for (const item of itemsToImport) {
-            if (item && typeof item.key === 'string') { 
-              // Use put(value, key) for settings
-              await store.put(item.value, item.key); 
-            } else {
-              console.warn(`Skipping invalid settings item during import:`, item);
-            }
-          }
-        } else {
-          // Handle other stores (assuming they have an 'id' property as key)
-          for (const item of itemsToImport) {
-            // Use put(value, key) for other stores, assuming item.id is the key
-            if (item && typeof item.id === 'string') { 
-              await store.put(item, item.id); 
-            } else {
-              console.warn(`Skipping invalid item in ${storeName} during import (missing or invalid id):`, item);
-            }
-          }
-        }
-        console.log(`Imported ${itemsToImport.length} items into ${storeName}`);
-      }
-    }
-    await tx.done;
-    console.log('DB import finished successfully.');
-  } catch (err) {
-    console.error('Error during DB import transaction:', err);
-    tx.abort();
-    throw new Error('Failed to import data into the database.');
-  }
+	console.log('Starting DB import...');
+	const tx = db.transaction(storesToImport, 'readwrite');
+	try {
+		for (const storeName of storesToImport) {
+			const store = tx.objectStore(storeName);
+			await store.clear(); // Clear existing data
+			console.log(`Cleared store: ${storeName}`);
+
+			const itemsToImport = importData[storeName];
+			if (itemsToImport && Array.isArray(itemsToImport)) {
+				if (storeName === StoreNames.SETTINGS) {
+					// Handle settings store: import from array of { key: string, value: any }
+					for (const item of itemsToImport) {
+						if (item && typeof item.key === 'string') {
+							// Use put(value, key) for settings
+							await store.put(item.value, item.key);
+						} else {
+							console.warn(`Skipping invalid settings item during import:`, item);
+						}
+					}
+				} else {
+					// Handle other stores (assuming they have an 'id' property as key)
+					for (const item of itemsToImport) {
+						// Use put(value, key) for other stores, assuming item.id is the key
+						if (item && typeof item.id === 'string') {
+							await store.put(item, item.id);
+						} else {
+							console.warn(`Skipping invalid item in ${storeName} during import (missing or invalid id):`, item);
+						}
+					}
+				}
+				console.log(`Imported ${itemsToImport.length} items into ${storeName}`);
+			}
+		}
+		await tx.done;
+		console.log('DB import finished successfully.');
+	} catch (err) {
+		console.error('Error during DB import transaction:', err);
+		tx.abort();
+		throw new Error('Failed to import data into the database.');
+	}
 };

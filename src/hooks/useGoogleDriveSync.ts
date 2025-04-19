@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { gapi, loadAuth2 } from 'gapi-script';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb } from '../db';
+// Import the moved functions from db.ts
+import { getDb, DB_NAME, StudyPalDB, exportDbToJson, importDbFromJson } from '../db'; 
 import { 
   Subject, 
   Chapter, 
@@ -11,14 +12,17 @@ import {
   SyncQueueItem,
   MaterialType
 } from '../types/db.types';
+import { IDBPDatabase } from 'idb';
 
 // --- Constants --- 
 // IMPORTANT: Replace with your actual credentials from Google Cloud Console
 // Store these securely, ideally via environment variables during build time
-const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || 'YOUR_API_KEY_PLACEHOLDER'; 
-const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'YOUR_CLIENT_ID_PLACEHOLDER';
+const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY 
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
 const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
+const STUDYPAL_DB_FILE = 'studypal.db.json';
+const DB_BACKUP_MIME_TYPE = 'application/json';
 
 // Type for auth state
 type AuthState = {
@@ -44,6 +48,9 @@ export function useGoogleDriveSync() {
     lastSyncResult?: SyncResult;
   }>({ isSyncing: false });
   const [error, setError] = useState<Error | null>(null);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [lastBackupTime, setLastBackupTime] = useState<number | null>(null);
 
   // --- GAPI Initialization Effect ---
   useEffect(() => {
@@ -60,7 +67,7 @@ export function useGoogleDriveSync() {
           gapi.load('client:auth2', {
             callback: resolve,
             onerror: reject,
-            timeout: 10000, // Increased timeout
+            timeout: 10000,
             ontimeout: reject
           });
         });
@@ -97,6 +104,8 @@ export function useGoogleDriveSync() {
     initGapiClient();
 
   }, []); 
+
+  // --- Auth Functions (signIn, signOut, isAuthenticated) ---
 
   /**
    * Initiate Google Sign-In
@@ -141,6 +150,8 @@ export function useGoogleDriveSync() {
     // Also check if the auth instance itself is loaded
     return isGapiLoaded && !!gapi.auth2?.getAuthInstance() && authState.isAuthenticated;
   }, [isGapiLoaded, authState.isAuthenticated]);
+
+  // --- Drive API Helpers (driveApiAction, createOrUpdateDriveItem, deleteDriveItem, getDriveFileContent, listDriveItems) ---
 
   /**
    * Helper to perform Drive API actions with error handling using gapi
@@ -330,8 +341,135 @@ export function useGoogleDriveSync() {
     return response.result.files || [];
   }, [driveApiAction]);
 
-  // --- Sync Logic (Hooks using the gapi helpers) ---
+  // --- Database Backup/Restore Logic --- 
 
+  /**
+   * Finds the studypal.db.json file in the AppData folder.
+   */
+  const findDbBackupFile = useCallback(async (): Promise<gapi.client.drive.File | null> => {
+    try {
+      const response = await driveApiAction(() =>
+        gapi.client.drive.files.list({
+          spaces: 'appDataFolder',
+          q: `name = '${STUDYPAL_DB_FILE}' and trashed = false`,
+          fields: 'files(id, name, modifiedTime)',
+        })
+      );
+      return response.result.files && response.result.files.length > 0
+        ? response.result.files[0]
+        : null;
+    } catch (err) {
+      console.error('Error finding DB backup file:', err);
+      // Don't throw here, allow backup/restore to handle not found
+      return null; 
+    }
+  }, [driveApiAction]);
+
+  /**
+   * Backs up the entire IndexedDB to studypal.db.json on Google Drive.
+   */
+  const backupDatabaseToDrive = useCallback(async () => {
+    if (!isAuthenticated()) throw new Error('Not authenticated');
+    setIsBackingUp(true);
+    setError(null);
+    setLastBackupTime(null);
+
+    try {
+      console.log('Starting database backup to Drive...');
+      // Use imported function
+      const dbJson = await exportDbToJson(); 
+      const existingBackup = await findDbBackupFile();
+      
+      const blob = new Blob([dbJson], { type: DB_BACKUP_MIME_TYPE });
+
+      // Use gapi.client.request for upload
+      const path = existingBackup?.id
+        ? `/upload/drive/v3/files/${existingBackup.id}`
+        : '/upload/drive/v3/files';
+      const method = existingBackup?.id ? 'PATCH' : 'POST';
+      
+      const metadata = { 
+          name: STUDYPAL_DB_FILE, 
+          mimeType: DB_BACKUP_MIME_TYPE,
+          ...( !existingBackup && { parents: ['appDataFolder'] }) // Add parent only on create
+      };
+
+      // Use multipart upload for creating or updating with metadata + media
+      const boundary = '-------314159265358979323846';
+      const delimiter = "\r\n--" + boundary + "\r\n";
+      const close_delim = "\r\n--" + boundary + "--";
+      const metadataStr = JSON.stringify(metadata);
+
+      const multipartRequestBody = 
+          delimiter +
+          'Content-Type: application/json\r\n\r\n' +
+          metadataStr +
+          delimiter +
+          'Content-Type: ' + DB_BACKUP_MIME_TYPE + '\r\n\r\n' +
+          dbJson + // Use the JSON string directly
+          close_delim;
+
+      const response = await driveApiAction(() => 
+        gapi.client.request({
+          path: path,
+          method: method,
+          params: { uploadType: 'multipart', fields: 'id, name, modifiedTime' },
+          headers: { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
+          body: multipartRequestBody
+        })
+      );
+
+      const backupTime = new Date(response.result.modifiedTime || Date.now()).getTime();
+      setLastBackupTime(backupTime);
+      console.log('Database backup successful!', response.result);
+      
+    } catch (err: any) {
+      console.error('Database backup failed:', err);
+      setError(err instanceof Error ? err : new Error('Database backup failed.'));
+      throw err; // Re-throw for UI handling
+    } finally {
+      setIsBackingUp(false);
+    }
+  }, [isAuthenticated, findDbBackupFile, driveApiAction]); 
+
+  /**
+   * Restores the IndexedDB from studypal.db.json on Google Drive.
+   */
+  const restoreDatabaseFromDrive = useCallback(async () => {
+    if (!isAuthenticated()) throw new Error('Not authenticated');
+    setIsRestoring(true);
+    setError(null);
+
+    try {
+      console.log('Attempting to restore database from Drive...');
+      const backupFile = await findDbBackupFile();
+      if (!backupFile || !backupFile.id) {
+        throw new Error('No database backup file found on Google Drive.');
+      }
+
+      console.log(`Found backup file: ${backupFile.id}, modified: ${backupFile.modifiedTime}`);
+      const blob = await getDriveFileContent(backupFile.id);
+      const dbJson = await blob.text();
+
+      await importDbFromJson(dbJson);
+      
+      // Optionally: Refresh parts of the app state after restore
+      console.log('Database restore successful!');
+      // Maybe trigger a page reload or state refresh here if needed
+      // window.location.reload(); // Force reload might be simplest
+
+    } catch (err: any) {
+      console.error('Database restore failed:', err);
+      setError(err instanceof Error ? err : new Error('Database restore failed.'));
+      throw err; // Re-throw for UI handling
+    } finally {
+      setIsRestoring(false);
+    }
+  }, [isAuthenticated, findDbBackupFile, getDriveFileContent]); 
+
+
+
+  // --- Item-by-Item Sync Logic (addToSyncQueue, syncItemToDrive, processSyncQueue, parseDriveFileName, updateLocalItem, pullFromDrive, syncWithDrive, resolveConflict) ---
   /**
    * Add an item to the sync queue
    */
@@ -565,6 +703,7 @@ export function useGoogleDriveSync() {
                if (!driveFile.id) throw new Error('Drive file ID missing for content fetch');
                const blob = await getDriveFileContent(driveFile.id);
                
+
                // Parse content (Same logic)
                let parsedContent: string | Blob | undefined = blob;
                let parsedContentUrl: string | undefined;
@@ -862,16 +1001,25 @@ export function useGoogleDriveSync() {
   return {
     isGapiLoaded,
     authState,
-    syncState,
+    syncState, // For item-by-item sync status
     error,
-    isAuthenticated: isAuthenticated(), // Use the hook's function
+    isAuthenticated: isAuthenticated(),
     signIn,
     signOut,
     
+    // Item-by-item sync functions
     syncWithDrive,
     pullFromDrive,
     processSyncQueue,
     resolveConflict,
-    addToSyncQueue, // Expose if needed elsewhere
+    addToSyncQueue,
+
+    // Full DB Backup/Restore functions & state
+    isBackingUp,
+    isRestoring,
+    lastBackupTime,
+    backupDatabaseToDrive,
+    restoreDatabaseFromDrive,
+    findDbBackupFile, // Expose if needed to check for backup existence in UI
   };
 }

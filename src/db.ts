@@ -1,13 +1,13 @@
-import { openDB, DBSchema, IDBPDatabase } from "idb";
+import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { 
-    StoreNames, 
-    Subject, 
-    Chapter, 
-    Material, 
-    SyncQueueItem,
-    MaterialType, 
-    SyncStatus
-} from "./types/db.types";
+  Subject, 
+  Chapter, 
+  Material, 
+  SyncStatus, 
+  StoreNames,
+  SyncQueueItem,
+  MaterialType
+} from './types/db.types'; // Ensure correct path
 
 /**
  * Application database name.
@@ -17,7 +17,7 @@ export const DB_NAME = "StudyPalDB";
 /**
  * Current database version.
  */
-export const DB_VERSION = 2;
+export const DB_VERSION = 1;
 
 /**
  * The base database schema for StudyPal app.
@@ -30,6 +30,11 @@ export interface StudyPalDB extends DBSchema {
 	[StoreNames.MATERIALS]: { key: string; value: Material; indexes: { 'by-chapter': string; 'by-syncStatus': string } };
 	[StoreNames.SYNC_QUEUE]: { key: string; value: SyncQueueItem; indexes: { 'by-timestamp': number } };
 }
+
+// Type for DB export format
+type DbExport = {
+  [key in StoreNames]?: any[];
+};
 
 // Singleton database connection
 let dbPromise: Promise<IDBPDatabase<StudyPalDB>> | null = null;
@@ -214,3 +219,82 @@ export class DBStore<T> {
 		}
 	}
 }
+
+// --- Database Export/Import Functions ---
+
+/**
+ * Exports all data from specified IndexedDB stores to a JSON object.
+ */
+export const exportDbToJson = async (): Promise<string> => {
+  const db = await getDb();
+  const exportData: DbExport = {};
+  const storesToExport: StoreNames[] = [
+    StoreNames.SETTINGS,
+    StoreNames.SUBJECTS,
+    StoreNames.CHAPTERS,
+    StoreNames.MATERIALS,
+  ];
+
+  console.log('Starting DB export...');
+  for (const storeName of storesToExport) {
+    try {
+      const allItems = await db.getAll(storeName);
+      exportData[storeName] = allItems;
+      console.log(`Exported ${allItems.length} items from ${storeName}`);
+    } catch (err) {
+      console.error(`Error exporting store ${storeName}:`, err);
+      throw new Error(`Failed to export data from ${storeName}`);
+    }
+  }
+  console.log('DB export finished.');
+  return JSON.stringify(exportData);
+};
+
+/**
+ * Imports data from a JSON object into IndexedDB, clearing existing data.
+ */
+export const importDbFromJson = async (jsonString: string): Promise<void> => {
+  let importData: DbExport;
+  try {
+    importData = JSON.parse(jsonString);
+  } catch (err) {
+    console.error('Failed to parse backup JSON:', err);
+    throw new Error('Invalid backup file format.');
+  }
+
+  const db = await getDb();
+  const storesToImport: StoreNames[] = [
+    StoreNames.SETTINGS,
+    StoreNames.SUBJECTS,
+    StoreNames.CHAPTERS,
+    StoreNames.MATERIALS,
+    StoreNames.SYNC_QUEUE, // Clear sync queue on restore
+  ];
+
+  console.log('Starting DB import...');
+  const tx = db.transaction(storesToImport, 'readwrite');
+  try {
+    for (const storeName of storesToImport) {
+      const store = tx.objectStore(storeName);
+      await store.clear(); // Clear existing data
+      console.log(`Cleared store: ${storeName}`);
+      
+      const itemsToImport = importData[storeName];
+      if (itemsToImport && Array.isArray(itemsToImport)) {
+        for (const item of itemsToImport) {
+          // Basic validation if needed, e.g., check for primary key
+          if (item) { 
+            await store.put(item);
+          }
+        }
+        console.log(`Imported ${itemsToImport.length} items into ${storeName}`);
+      }
+    }
+    await tx.done;
+    console.log('DB import finished successfully.');
+  } catch (err) {
+    console.error('Error during DB import transaction:', err);
+    tx.abort();
+    throw new Error('Failed to import data into the database.');
+  }
+};

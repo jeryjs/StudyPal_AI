@@ -19,6 +19,16 @@ const baseThemeOptions: ThemeOptions = {
         borderRadius: 6,
     },
     components: {
+        MuiLink: {
+            styleOverrides: {
+                root: ({ theme }) => ({
+                    color: theme.palette.primary.main,
+                    '&:hover': {
+                        color: theme.palette.primary.dark,
+                    },
+                }),
+            },
+        },
         MuiPaper: {
             defaultProps: {
                 elevation: 0,
@@ -164,26 +174,49 @@ const baseThemeOptions: ThemeOptions = {
                     '&.Mui-focused': {
                         boxShadow: 'none',
                     }
-                }),
-                input: ({ theme }) => ({
-                    padding: theme.spacing(1.5, 2),
-                    fontSize: '1rem',
-                    color: theme.palette.text.primary,
-                }),
-            }
-        },
-        MuiInputBase: {
-            styleOverrides: {
-                input: ({ theme }) => ({
-                    fontSize: '1rem',
-                }),
+                })
             }
         },
         MuiGrid: {
             defaultProps: {
                 spacing: 3
             }
-        }
+        },
+        MuiDialog: {
+            styleOverrides: {
+                paper: ({ theme }) => ({
+                    backgroundColor: alpha(theme.palette.background.paper, 0.8),
+                    backdropFilter: 'blur(10px)',
+                    WebkitBackdropFilter: 'blur(10px)',
+                    borderRadius: theme.shape.borderRadius * 2,
+                    margin: theme.spacing(2),
+                    border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
+                    boxShadow: `0px 4px 12px ${alpha(theme.palette.divider, 0.1)}`,
+                }),
+            },
+        },
+        MuiDialogContent: {
+            styleOverrides: {
+                root: ({ theme }) => ({
+                    color: theme.palette.text.primary,
+                    '& a': {
+                        color: theme.palette.primary.main,
+                        textDecoration: 'none',
+                        '&:hover': {
+                            textDecoration: 'underline',
+                        },
+                    },
+                }),
+            },
+        },
+        MuiDialogActions: {
+            styleOverrides: {
+                root: ({ theme }) => ({
+                    padding: theme.spacing(1, 2),
+                    backgroundColor: alpha(theme.palette.background.default, 0.5),
+                }),
+            },
+        },
     }
 };
 
@@ -362,12 +395,7 @@ const generateMuiTheme = (appTheme: AppTheme): Theme => {
                         '&.Mui-focused': {
                             boxShadow: 'none',
                         }
-                    },
-                    input: {
-                        padding: '10px 12px',
-                        fontSize: '0.9rem',
-                        color: textPrimaryColor, // Use theme's primary text color
-                    },
+                    }
                 }
             },
             MuiInputBase: {

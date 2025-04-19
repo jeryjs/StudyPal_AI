@@ -1,4 +1,5 @@
-import { DBStore, StoreNames } from '../db';
+import { DBStore } from '../db';
+import { StoreNames } from '../types/db.types';
 
 /**
  * Setting keys - enum of all available settings
@@ -6,6 +7,7 @@ import { DBStore, StoreNames } from '../db';
  */
 export enum SettingKeys {
   ACTIVE_THEME = 'active_theme',
+  GEMINI_API_KEY = 'gemini_api_key',
   // Add more settings as needed:
 }
 
@@ -30,6 +32,20 @@ class SettingsStore extends DBStore<any> {
    */
   async setTheme(themeId: string): Promise<void> {
     await this.set(SettingKeys.ACTIVE_THEME, themeId);
+  }
+  
+  /**
+   * Get the Gemini API key
+   */
+  async getGeminiApiKey(): Promise<string | undefined> {
+    return this.get(SettingKeys.GEMINI_API_KEY);
+  }
+  
+  /**
+   * Set the Gemini API key
+   */
+  async setGeminiApiKey(apiKey: string): Promise<void> {
+    await this.set(SettingKeys.GEMINI_API_KEY, apiKey);
   }
 
   /**
@@ -72,6 +88,23 @@ export async function getThemeSetting(): Promise<string | undefined> {
  */
 export async function setThemeSetting(themeName: string): Promise<void> {
   await settingsStore.setTheme(themeName);
+}
+
+/**
+ * Retrieves the saved Gemini API key
+ * @returns A promise that resolves with the API key or undefined
+ */
+export async function getGeminiApiKey(): Promise<string | undefined> {
+  return settingsStore.getGeminiApiKey();
+}
+
+/**
+ * Saves the Gemini API key
+ * @param apiKey - The API key to save
+ * @returns A promise that resolves when the API key is saved
+ */
+export async function setGeminiApiKey(apiKey: string): Promise<void> {
+  await settingsStore.setGeminiApiKey(apiKey);
 }
 
 // Export legacy functions to maintain backward compatibility

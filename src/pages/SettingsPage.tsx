@@ -1,11 +1,14 @@
-import React, { useState } from 'react'; // Added useState
-import { Box, Typography, Paper, Grid, Card, CardActionArea, CardContent, Button, alpha, Theme, Collapse, Divider } from '@mui/material'; // Added Collapse, Divider
+import React, { useState } from 'react';
+import { Box, Typography, Paper, Grid, Card, CardActionArea, CardContent, Button, alpha, Theme, Collapse, Divider } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'; // Added Icon
-import ExpandLessIcon from '@mui/icons-material/ExpandLess'; // Added Icon
-import { availableThemes, useThemeContext } from '@contexts/ThemeContext';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
-// --- Section Component ---
+import { availableThemes, useThemeContext } from '@contexts/ThemeContext';
+import GoogleDriveSync from '@components/settings/GoogleDriveSync';
+import GeminiApiSettings from '@components/settings/GeminiApiSettings';
+
+// --- Section Component --- 
 const Section = ({ title, subTitle, children, theme }: { title: string; subTitle: string; children: React.ReactNode; theme: Theme }) => {
   return (
     <Paper sx={{ p: { xs: 2, md: 3 }, mb: 4, backgroundColor: theme.palette.background.paper, borderRadius: theme.shape.borderRadius }}>
@@ -135,6 +138,16 @@ const SettingsPage: React.FC = () => {
             Create Your Own Theme
           </Button>
         </Box>
+      </Section>
+
+      {/* AI Settings Section */}
+      <Section title='AI Integration' subTitle='Configure API keys for AI integration to enhance your study experience.' theme={theme}>
+        <GeminiApiSettings />
+      </Section>
+
+      {/* Data Sync Section */}
+      <Section title='Data Synchronization' subTitle='Sync your data with Google Drive to access it across all your devices.' theme={theme}>
+        <GoogleDriveSync />
       </Section>
 
       {/* TODO: Add other settings sections here (e.g., Account, Notifications) */}

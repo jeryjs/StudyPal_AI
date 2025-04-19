@@ -73,13 +73,13 @@ const GlassmorphicPaper = styled(Paper)(({ theme }) => ({
     },
 }));
 
-const SubjectCard = styled(GlassmorphicPaper)(({ theme, bgcolor }) => ({
+const SubjectCard = styled(GlassmorphicPaper)(({ theme }) => ({
     padding: theme.spacing(2.5, 3),
     display: 'flex',
     flexDirection: 'column',
     height: '100%', // Ensure cards in a row have same height
     minHeight: 220, // Minimum height for content
-    borderTop: `6px solid ${bgcolor || theme.palette.primary.main}`, // Accent color border
+    borderTop: `6px solid ${theme.palette.primary.main}`, // Accent color border
     cursor: 'pointer',
     position: 'relative', // Keep relative for potential future use, but not needed for buttons now
 }));
@@ -189,9 +189,9 @@ const CancelButton = styled(PillButton)(({ theme }) => ({
     },
 }));
 
-const IconWrapper = styled(Avatar)(({ theme, bgcolor }) => ({
-    backgroundColor: alpha(bgcolor || theme.palette.primary.main, 0.15),
-    color: bgcolor || theme.palette.primary.main,
+const IconWrapper = styled(Avatar)(({ theme}) => ({
+    backgroundColor: alpha(theme.palette.primary.main, 0.15),
+    color: theme.palette.primary.main,
     width: 56,
     height: 56,
     '& .MuiSvgIcon-root': { // Ensure icon size is consistent

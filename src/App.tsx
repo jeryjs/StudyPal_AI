@@ -22,7 +22,7 @@ function App() {
   const isCopilotRoute = location.pathname === '/copilot';
 
   // Sidebar State & Responsiveness
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const handleSidebarToggle = () => {

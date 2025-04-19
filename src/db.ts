@@ -1,4 +1,13 @@
 import { openDB, DBSchema, IDBPDatabase } from "idb";
+import { 
+    StoreNames, 
+    Subject, 
+    Chapter, 
+    Material, 
+    SyncQueueItem,
+    MaterialType, 
+    SyncStatus
+} from "./types/db.types";
 
 /**
  * Application database name.
@@ -8,24 +17,18 @@ export const DB_NAME = "StudyPalDB";
 /**
  * Current database version.
  */
-export const DB_VERSION = 1;
-
-/**
- * Names of object stores in the database.
- */
-export enum StoreNames {
-	SETTINGS = "settings",
-	// Add other stores here as needed (e.g., NOTES, TASKS, etc.)
-}
+export const DB_VERSION = 2;
 
 /**
  * The base database schema for StudyPal app.
- * Uses a flexible key/value for each store to allow
- * specialized interfaces in individual store modules.
+ * Uses type definitions from @types/db.types.ts
  */
 export interface StudyPalDB extends DBSchema {
 	[StoreNames.SETTINGS]: { key: string; value: any };
-	// Define other stores with their own key/value types as needed
+	[StoreNames.SUBJECTS]: { key: string; value: Subject };
+	[StoreNames.CHAPTERS]: { key: string; value: Chapter; indexes: { 'by-subject': string } };
+	[StoreNames.MATERIALS]: { key: string; value: Material; indexes: { 'by-chapter': string; 'by-syncStatus': string } };
+	[StoreNames.SYNC_QUEUE]: { key: string; value: SyncQueueItem; indexes: { 'by-timestamp': number } };
 }
 
 // Singleton database connection
@@ -39,15 +42,43 @@ export function getDb(): Promise<IDBPDatabase<StudyPalDB>> {
 	if (!dbPromise) {
 		dbPromise = openDB<StudyPalDB>(DB_NAME, DB_VERSION, {
 			upgrade(db, oldVersion, newVersion) {
-				console.log(`Upgrading database from version ${oldVersion} to ${newVersion}`);
-
-				// Settings store
+				console.log(`Upgrading database from version ${oldVersion} to ${newVersion}`);				// Settings store
 				if (!db.objectStoreNames.contains(StoreNames.SETTINGS)) {
 					db.createObjectStore(StoreNames.SETTINGS);
 					console.log(`Created object store: ${StoreNames.SETTINGS}`);
 				}
 
-				// Create other stores as needed here
+				// Subjects store
+				if (!db.objectStoreNames.contains(StoreNames.SUBJECTS)) {
+					db.createObjectStore(StoreNames.SUBJECTS, { keyPath: 'id' });
+					console.log(`Created object store: ${StoreNames.SUBJECTS}`);
+				}
+
+				// Chapters store
+				if (!db.objectStoreNames.contains(StoreNames.CHAPTERS)) {
+					const chapterStore = db.createObjectStore(StoreNames.CHAPTERS, { keyPath: 'id' });
+					// Create index to find chapters by subject ID
+					chapterStore.createIndex('by-subject', 'subjectId');
+					console.log(`Created object store: ${StoreNames.CHAPTERS}`);
+				}
+
+				// Materials store
+				if (!db.objectStoreNames.contains(StoreNames.MATERIALS)) {
+					const materialsStore = db.createObjectStore(StoreNames.MATERIALS, { keyPath: 'id' });
+					// Create index to find materials by chapter ID
+					materialsStore.createIndex('by-chapter', 'chapterId');
+					// Create index to find materials by sync status
+					materialsStore.createIndex('by-syncStatus', 'syncStatus');
+					console.log(`Created object store: ${StoreNames.MATERIALS}`);
+				}
+
+				// Sync Queue store
+				if (!db.objectStoreNames.contains(StoreNames.SYNC_QUEUE)) {
+					const syncQueueStore = db.createObjectStore(StoreNames.SYNC_QUEUE, { keyPath: 'id' });
+					// Create index to order items by timestamp
+					syncQueueStore.createIndex('by-timestamp', 'timestamp');
+					console.log(`Created object store: ${StoreNames.SYNC_QUEUE}`);
+				}
 			},
 			blocked() {
 				console.error("Database upgrade blocked. Close other tabs running this app.");

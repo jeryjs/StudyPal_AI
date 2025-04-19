@@ -238,9 +238,23 @@ export const exportDbToJson = async (): Promise<string> => {
   console.log('Starting DB export...');
   for (const storeName of storesToExport) {
     try {
-      const allItems = await db.getAll(storeName);
-      exportData[storeName] = allItems;
-      console.log(`Exported ${allItems.length} items from ${storeName}`);
+      if (storeName === StoreNames.SETTINGS) {
+        // Handle settings store: export as array of { key: string, value: any }
+        const allKeys = await db.getAllKeys(storeName);
+        // Explicitly type the array
+        const settingsData: { key: string; value: any }[] = []; 
+        for (const key of allKeys) {
+          const value = await db.get(storeName, key);
+          settingsData.push({ key, value });
+        }
+        exportData[storeName] = settingsData;
+        console.log(`Exported ${settingsData.length} items from ${storeName}`);
+      } else {
+        // Handle other stores (assuming they have an 'id' property as key)
+        const allItems = await db.getAll(storeName);
+        exportData[storeName] = allItems;
+        console.log(`Exported ${allItems.length} items from ${storeName}`);
+      }
     } catch (err) {
       console.error(`Error exporting store ${storeName}:`, err);
       throw new Error(`Failed to export data from ${storeName}`);
@@ -281,10 +295,25 @@ export const importDbFromJson = async (jsonString: string): Promise<void> => {
       
       const itemsToImport = importData[storeName];
       if (itemsToImport && Array.isArray(itemsToImport)) {
-        for (const item of itemsToImport) {
-          // Basic validation if needed, e.g., check for primary key
-          if (item) { 
-            await store.put(item);
+        if (storeName === StoreNames.SETTINGS) {
+          // Handle settings store: import from array of { key: string, value: any }
+          for (const item of itemsToImport) {
+            if (item && typeof item.key === 'string') { 
+              // Use put(value, key) for settings
+              await store.put(item.value, item.key); 
+            } else {
+              console.warn(`Skipping invalid settings item during import:`, item);
+            }
+          }
+        } else {
+          // Handle other stores (assuming they have an 'id' property as key)
+          for (const item of itemsToImport) {
+            // Use put(value, key) for other stores, assuming item.id is the key
+            if (item && typeof item.id === 'string') { 
+              await store.put(item, item.id); 
+            } else {
+              console.warn(`Skipping invalid item in ${storeName} during import (missing or invalid id):`, item);
+            }
           }
         }
         console.log(`Imported ${itemsToImport.length} items into ${storeName}`);

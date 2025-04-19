@@ -1,26 +1,26 @@
-import React, { useState, useEffect, useCallback } from 'react';
 import {
+    Backup as BackupIcon,
+    CloudDone as CloudDoneIcon,
+    CloudOff as CloudOffIcon,
+    Login as LoginIcon,
+    Logout as LogoutIcon,
+    Restore as RestoreIcon,
+} from '@mui/icons-material';
+import {
+    Alert,
+    alpha,
     Box,
-    Typography,
     Button,
     CircularProgress,
-    Alert,
-    Divider,
-    alpha,
-    IconButton,
-    Tooltip,
-    Chip
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogContentText,
+    DialogTitle,
+    Typography
 } from '@mui/material';
-import {
-    CloudSync as CloudSyncIcon,
-    CloudOff as CloudOffIcon,
-    CloudDone as CloudDoneIcon,
-    ErrorOutline as ErrorIcon,
-    Refresh as RefreshIcon,
-    Login as LoginIcon,
-    Logout as LogoutIcon
-} from '@mui/icons-material';
-import { useGoogleDriveSync } from '../../hooks/useGoogleDriveSync';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useGoogleDriveSync } from '@hooks/useGoogleDriveSync';
 
 const GoogleDriveSync: React.FC = () => {
     const {
@@ -28,28 +28,51 @@ const GoogleDriveSync: React.FC = () => {
         authState,
         signIn,
         signOut,
-        syncState,
+        syncState, // Keep for potential item sync status?
         error,
-        syncWithDrive,
+        // syncWithDrive, // Comment out or remove if fully switching to backup/restore
+        // pullFromDrive, 
+        // processSyncQueue,
+        // resolveConflict,
+        // addToSyncQueue,
+        isBackingUp, // New state
+        isRestoring, // New state
+        lastBackupTime, // New state
+        backupDatabaseToDrive, // New function
+        restoreDatabaseFromDrive, // New function
+        findDbBackupFile // To check if backup exists
     } = useGoogleDriveSync();
 
-    // Local state for UI-specific errors or messages
     const [localError, setLocalError] = useState<string | null>(null);
-    const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-    const [lastSyncData, setLastSyncData] = useState<{ lastSyncTime?: number; lastSyncResult?: any }>(() => {
-        const storedData = localStorage.getItem('lastSyncData');
-        return storedData ? JSON.parse(storedData) : {};
-    });
+    const [showSuccessMessage, setShowSuccessMessage] = useState<string | null>(null); // Store success message text
+    const [backupExists, setBackupExists] = useState<boolean | null>(null); // Track if backup file exists
+    const [isRestoreConfirmOpen, setIsRestoreConfirmOpen] = useState(false); // Dialog state
 
-    // Combine hook error and local error for display
     const displayError = error?.message || localError;
+
+    // Effect to check for existing backup file on load/auth change
+    useEffect(() => {
+        const checkBackup = async () => {
+            if (isGapiLoaded && authState.isAuthenticated) {
+                setBackupExists(null); // Reset while checking
+                try {
+                    const file = await findDbBackupFile();
+                    setBackupExists(!!file);
+                } catch (err) {
+                    console.error("Error checking for backup file:", err);
+                    setBackupExists(false); // Assume no backup on error
+                }
+            }
+        };
+        checkBackup();
+    }, [isGapiLoaded, authState.isAuthenticated, findDbBackupFile]);
 
     // Effect to auto-hide success message
     useEffect(() => {
         let timer: NodeJS.Timeout;
         if (showSuccessMessage) {
             timer = setTimeout(() => {
-                setShowSuccessMessage(false);
+                setShowSuccessMessage(null);
             }, 5000);
         }
         return () => {
@@ -57,62 +80,73 @@ const GoogleDriveSync: React.FC = () => {
         };
     }, [showSuccessMessage]);
 
-    useEffect(() => {
-        if (syncState.lastSyncTime || syncState.lastSyncResult) {
-            const newSyncData = {
-                lastSyncTime: syncState.lastSyncTime,
-                lastSyncResult: syncState.lastSyncResult,
-            };
-            localStorage.setItem('lastSyncData', JSON.stringify(newSyncData));
-            setLastSyncData(newSyncData);
-        }
-    }, [syncState.lastSyncTime, syncState.lastSyncResult]);
-
     // Clear errors before initiating actions
-    const clearErrors = () => {
+    const clearMessages = () => {
         setLocalError(null);
-        // We cannot directly call setError from the hook, 
+        setShowSuccessMessage(null);
+        // We cannot directly call setError from the hook,
         // but actions within the hook should clear the error state on success.
     };
 
     const handleSignIn = async () => {
-        clearErrors();
+        clearMessages();
         try {
             await signIn();
-        } catch (err: any) {
-            console.error("Sign in UI catch:", err);
-            // Error is managed by the hook
-        }
+        } catch (err: any) { /* Error handled by hook */ }
     };
 
     const handleSignOut = async () => {
-        clearErrors();
+        clearMessages();
+        setBackupExists(null); // Reset backup status on sign out
         try {
             await signOut();
-        } catch (err) {
-            console.error("Sign out UI catch:", err);
-            // Error is managed by the hook
-        }
+        } catch (err) { /* Error handled by hook */ }
     };
 
-    const handleSync = useCallback(async () => {
-        clearErrors();
-        setShowSuccessMessage(false);
+    // Trigger Backup
+    const handleBackup = useCallback(async () => {
+        clearMessages();
         try {
-            await syncWithDrive();
-            // Check if the hook's error state is null after sync before showing success
-            // This requires the hook to clear its error on successful sync
-            setShowSuccessMessage(true);
+            await backupDatabaseToDrive();
+            setShowSuccessMessage('Database backed up successfully!');
+            setBackupExists(true); // Assume backup exists after successful operation
         } catch (err) {
-            console.error('Sync UI catch:', err);
-            setShowSuccessMessage(false);
             // Error is managed by the hook
+            console.error('Backup UI catch:', err);
+            setShowSuccessMessage(null);
         }
-    }, [syncWithDrive]); // Removed setError dependency
+    }, [backupDatabaseToDrive]);
 
-    const getLastSyncTime = () => {
-        if (!lastSyncData.lastSyncTime) return 'Never';
-        const date = new Date(lastSyncData.lastSyncTime);
+    // Open Restore Confirmation Dialog
+    const handleOpenRestoreConfirm = () => {
+        setIsRestoreConfirmOpen(true);
+    };
+
+    // Close Restore Confirmation Dialog
+    const handleCloseRestoreConfirm = () => {
+        setIsRestoreConfirmOpen(false);
+    };
+
+    // Trigger Restore (after confirmation)
+    const handleRestore = useCallback(async () => {
+        handleCloseRestoreConfirm(); // Close dialog
+        clearMessages();
+        try {
+            await restoreDatabaseFromDrive();
+            setShowSuccessMessage('Database restored successfully! Consider reloading the app.');
+            // Optionally force a reload after restore
+            // setTimeout(() => window.location.reload(), 1000);
+        } catch (err) {
+            // Error is managed by the hook
+            console.error('Restore UI catch:', err);
+            setShowSuccessMessage(null);
+        }
+    }, [restoreDatabaseFromDrive]);
+
+    // Get last backup time as readable string
+    const getLastBackupTime = () => {
+        if (!lastBackupTime) return 'Never';
+        const date = new Date(lastBackupTime);
         return date.toLocaleString();
     };
 
@@ -132,6 +166,7 @@ const GoogleDriveSync: React.FC = () => {
                 flexWrap: 'wrap',
                 gap: 1
             }}>
+                {/* ... (Connection Status - same as before) ... */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     {!isGapiLoaded ? (
                         <CircularProgress size={20} />
@@ -147,19 +182,10 @@ const GoogleDriveSync: React.FC = () => {
                                 ? 'Connected to Google Drive'
                                 : 'Not connected to Google Drive'}
                     </Typography>
-
-                    {isGapiLoaded && isAuthenticated && (
-                        <Chip
-                            size="small"
-                            label={syncState.isSyncing ? 'Syncing...' : (lastSyncData.lastSyncTime ? 'Synced' : 'Ready to Sync')}
-                            color={syncState.isSyncing ? 'warning' : (error ? 'error' : 'success')} // Show error color if hook has error
-                            variant="outlined"
-                            sx={{ ml: 1 }}
-                        />
-                    )}
                 </Box>
 
                 <Box>
+                    {/* ... (Connect/Disconnect Buttons - same as before) ... */}
                     {isGapiLoaded ? (
                         isAuthenticated ? (
                             <Button
@@ -187,7 +213,7 @@ const GoogleDriveSync: React.FC = () => {
                 </Box>
             </Box>
 
-            {/* Last Sync Info */}
+            {/* Backup & Restore Section */}
             {isGapiLoaded && isAuthenticated && (
                 <Box sx={{
                     p: 2,
@@ -196,75 +222,87 @@ const GoogleDriveSync: React.FC = () => {
                     backdropFilter: 'blur(10px)',
                     border: (theme) => `1px solid ${alpha(theme.palette.divider, 0.1)}`,
                 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                        <Typography variant="subtitle2">Last sync:</Typography>
+                    <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>Database Sync</Typography>
+
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+                        <Typography variant="subtitle2">Last backup:</Typography>
                         <Typography variant="body2" color="text.secondary">
-                            {getLastSyncTime()}
+                            {isBackingUp ? 'Checking...' : getLastBackupTime()}
                         </Typography>
                     </Box>
-                    
-                    <Divider sx={{ my: 1 }} />
 
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        {lastSyncData.lastSyncResult && (
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mt: 1 }}>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Successful</Typography>
-                                    <Typography variant="subtitle2" color="success.main">{lastSyncData.lastSyncResult.successful}</Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Failed</Typography>
-                                    <Typography variant="subtitle2" color="error.main">{lastSyncData.lastSyncResult.failed}</Typography>
-                                </Box>
-                                <Box>
-                                    <Typography variant="caption" color="text.secondary">Conflicts</Typography>
-                                    <Typography variant="subtitle2" color="warning.main">{lastSyncData.lastSyncResult.conflicts}</Typography>
-                                </Box>
-                            </Box>
-                        )}
-
-                        <Box sx={{ display: 'flex', alignSelf: 'flex-end', marginLeft: 'auto' }}>
-                            <Tooltip title="Sync now">
-                                <IconButton
-                                    color="primary"
-                                    onClick={handleSync}
-                                    disabled={syncState.isSyncing || !isGapiLoaded}
-                                    size="small"
-                                    sx={{ display: { xs: 'inline', sm: 'none' } }}
-                                >
-                                    {syncState.isSyncing ? <CircularProgress size={20} /> : <RefreshIcon />}
-                                </IconButton>
-                            </Tooltip>
-                            <Button
-                                variant="contained"
-                                color="primary"
-                                startIcon={<CloudSyncIcon />}
-                                onClick={handleSync}
-                                disabled={syncState.isSyncing || !isGapiLoaded}
-                                sx={{ display: { xs: 'none', sm: 'flex' } }}
-                            >
-                                {syncState.isSyncing ? 'Syncing...' : 'Sync Now'}
-                            </Button>
+                    {backupExists === false && !isBackingUp && (
+                        <Alert severity="info" sx={{ mb: 2 }}>No backup found on Google Drive.</Alert>
+                    )}
+                    {backupExists === null && !isBackingUp && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                            <CircularProgress size={16} />
+                            <Typography variant="body2" color="text.secondary">Checking for existing backup...</Typography>
                         </Box>
-                    </Box>
+                    )}
 
+                    <Box sx={{ display: 'flex', gap: 2, mt: 2, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                        <Button
+                            variant="outlined"
+                            color="secondary"
+                            startIcon={isRestoring ? <CircularProgress size={20} /> : <RestoreIcon />}
+                            onClick={handleOpenRestoreConfirm} // Open confirmation dialog
+                            disabled={isBackingUp || isRestoring || !isGapiLoaded || backupExists === false || backupExists === null}
+                        >
+                            {isRestoring ? 'Restoring...' : 'Restore from Drive'}
+                        </Button>
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            startIcon={isBackingUp ? <CircularProgress size={20} /> : <BackupIcon />}
+                            onClick={handleBackup} // Use handleBackup
+                            disabled={isBackingUp || isRestoring || !isGapiLoaded}
+                        >
+                            {isBackingUp ? 'Backing up...' : 'Backup Now'}
+                        </Button>
+                    </Box>
+                    <Typography variant="caption" display="block" sx={{ mt: 2, color: 'text.secondary' }}>
+                        Restoring will overwrite your current local data with the data from the Google Drive backup.
+                    </Typography>
                 </Box>
             )}
 
             {/* Error and Success Messages */}
             {displayError && (
-                // Only allow clearing local errors via UI
-                <Alert severity="error" onClose={() => setLocalError(null)}>
+                <Alert severity="error" onClose={clearMessages}>
                     {displayError}
                 </Alert>
             )}
 
-            {/* Show success only if no error exists (hook or local) */}
-            {showSuccessMessage && !displayError && syncState.lastSyncResult && (
-                <Alert severity="success" onClose={() => setShowSuccessMessage(false)}>
-                    Sync completed successfully!
+            {showSuccessMessage && !displayError && (
+                <Alert severity="success" onClose={clearMessages}>
+                    {showSuccessMessage}
                 </Alert>
             )}
+
+            {/* Restore Confirmation Dialog */}
+            <Dialog
+                open={isRestoreConfirmOpen}
+                onClose={handleCloseRestoreConfirm}
+                aria-labelledby="restore-confirm-dialog-title"
+                aria-describedby="restore-confirm-dialog-description"
+            >
+                <DialogTitle id="restore-confirm-dialog-title">Confirm Restore</DialogTitle>
+                <DialogContent>
+                    <DialogContentText id="restore-confirm-dialog-description">
+                        Are you sure you want to restore your database from Google Drive?
+                        This action will overwrite all your current local data (subjects, chapters, materials, settings)
+                        with the data from your last backup. This cannot be undone.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleCloseRestoreConfirm}>Cancel</Button>
+                    <Button onClick={handleRestore} color="warning" autoFocus>
+                        Restore Now
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
         </Box>
     );
 };

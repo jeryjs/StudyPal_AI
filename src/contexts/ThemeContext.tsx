@@ -7,13 +7,39 @@ import settingsStore from '@store/settings';
 const baseThemeOptions: ThemeOptions = {
     typography: {
         fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
-        h4: { fontWeight: 600, fontSize: '2rem' },
-        h5: { fontWeight: 600, fontSize: '1.5rem' },
-        h6: { fontWeight: 600, fontSize: '1.25rem' },
-        body1: { fontSize: '1rem' },
-        body2: { fontSize: '0.9rem' },
-        button: { textTransform: 'none', fontWeight: 600, fontSize: '1.1rem' },
-        caption: { fontSize: '0.85rem' },
+        h4: {
+            fontWeight: 600,
+            fontSize: '2rem',
+            '@media (max-width:600px)': { fontSize: '1.5rem' },
+        },
+        h5: {
+            fontWeight: 600,
+            fontSize: '1.5rem',
+            '@media (max-width:600px)': { fontSize: '1.25rem' },
+        },
+        h6: {
+            fontWeight: 600,
+            fontSize: '1.25rem',
+            '@media (max-width:600px)': { fontSize: '1rem' },
+        },
+        body1: {
+            fontSize: '1rem',
+            '@media (max-width:600px)': { fontSize: '0.875rem' }
+        },
+        body2: {
+            fontSize: '0.9rem',
+            '@media (max-width:600px)': { fontSize: '0.8rem' }
+        },
+        button: {
+            textTransform: 'none',
+            fontWeight: 600,
+            fontSize: '1.1rem',
+            '@media (max-width:600px)': { fontSize: '0.9rem' }
+        },
+        caption: {
+            fontSize: '0.85rem',
+            '@media (max-width:600px)': { fontSize: '0.75rem' }
+        },
     },
     shape: {
         borderRadius: 6,
@@ -67,7 +93,7 @@ const baseThemeOptions: ThemeOptions = {
                     borderRadius: 12,
                     padding: theme.spacing(1.25, 3),
                     boxShadow: `0px 2px 6px ${alpha(theme.palette.divider, 0.1)}`, // Subtle shadow
-                    fontSize: '1.1rem',
+                    // fontSize: '1.1rem',
                 }),
                 containedPrimary: ({ theme }) => ({
                     backgroundColor: theme.palette.primary.main,
@@ -80,7 +106,7 @@ const baseThemeOptions: ThemeOptions = {
                 outlinedPrimary: ({ theme }) => ({
                     borderColor: alpha(theme.palette.primary.main, 0.5),
                     color: theme.palette.primary.main,
-                    fontSize: '1.1rem',
+                    // fontSize: '1.1rem',
                     '&:hover': {
                         background: alpha(theme.palette.primary.main, 0.08),
                         borderColor: theme.palette.primary.main,
@@ -88,7 +114,7 @@ const baseThemeOptions: ThemeOptions = {
                 }),
                 textPrimary: ({ theme }) => ({
                     color: theme.palette.primary.main,
-                    fontSize: '1.1rem',
+                    // fontSize: '1.1rem',
                     '&:hover': {
                         background: alpha(theme.palette.primary.main, 0.08),
                     },
@@ -150,7 +176,7 @@ const baseThemeOptions: ThemeOptions = {
                     marginRight: theme.spacing(2),
                     color: theme.palette.text.secondary,
                     marginLeft: theme.spacing(0.5),
-                    fontSize: '1.5rem',
+                    // fontSize: '1.5rem',
                 }),
             }
         },
@@ -220,10 +246,10 @@ const baseThemeOptions: ThemeOptions = {
                     [theme.breakpoints.down('sm')]: {
                         '& .MuiButton-root': {
                             margin: theme.spacing(0, 1),
-                            fontSize: '0.9rem',
+                            // fontSize: '0.9rem',
                         }
                     },
-                    
+
                 }),
             },
         },

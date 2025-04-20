@@ -1,7 +1,7 @@
 import React, { createContext, useState, useMemo, useContext, ReactNode, useEffect } from 'react';
 import { createTheme, ThemeProvider as MuiThemeProvider, ThemeOptions, Theme, alpha } from '@mui/material/styles';
 import { Box, PaletteMode } from '@mui/material';
-import { getThemeSetting, setThemeSetting } from '@store/settings';
+import settingsStore from '@store/settings';
 
 // --- Base Theme Options ---
 const baseThemeOptions: ThemeOptions = {
@@ -430,11 +430,11 @@ export const ThemeContextProvider: React.FC<{ children: ReactNode }> = ({ childr
     const [isLoading, setIsLoading] = useState(true);
 
     // Ensure isLoading state correctly uses the default background
-    const initialBgColor = (availableThemes.find(async t => t.id === await getThemeSetting()) || wellnessDark).palette.backgroundDefault;
+    const initialBgColor = (availableThemes.find(async t => t.id === await settingsStore.activeTheme) || wellnessDark).palette.backgroundDefault;
 
     useEffect(() => {
         let isMounted = true;
-        getThemeSetting().then(async (savedThemeId) => {
+        settingsStore.activeTheme.then(async (savedThemeId) => {
             if (isMounted) {
                 // Ensure the saved theme exists in our current list
                 const themeExists = availableThemes.find(t => t.id === savedThemeId);
@@ -444,7 +444,7 @@ export const ThemeContextProvider: React.FC<{ children: ReactNode }> = ({ childr
                     // If saved theme is invalid, default to Wellness Dark and save it
                     console.warn(`Saved theme "${savedThemeId}" not found. Defaulting to ${wellnessDark.id}.`);
                     setCurrentThemeName(wellnessDark.id);
-                    setThemeSetting(wellnessDark.id);
+                    settingsStore.activeTheme = wellnessDark.id;
                 }
                 // If no saved theme, it already defaults to Wellness Dark
                 setIsLoading(false);
@@ -460,9 +460,7 @@ export const ThemeContextProvider: React.FC<{ children: ReactNode }> = ({ childr
         const themeExists = availableThemes.find(t => t.id === id);
         if (themeExists) {
             setCurrentThemeName(id);
-            setThemeSetting(id).catch(error => {
-                console.error("Error saving theme setting:", error);
-            });
+            settingsStore.activeTheme = id; // Save the selected theme
         } else {
             console.warn(`Theme "${id}" not found.`);
         }

@@ -21,11 +21,11 @@ import {
     HelpOutline as HelpOutlineIcon,
 } from '@mui/icons-material';
 
-import { getGeminiApiKey, setGeminiApiKey } from '@store/settings';
+import settingsStore from '@store/settings';
 
 const GEMINI_API_KEY_PATTERN = /^AIza[A-Za-z0-9_\-]{35,}$/;
 
-const GeminiApiSettings: React.FC = () => {
+const GeminiApiKey: React.FC = () => {
     const [apiKey, setApiKey] = useState<string | null>(null);
     const [inputValue, setInputValue] = useState<string>('');
     const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -36,7 +36,7 @@ const GeminiApiSettings: React.FC = () => {
     useEffect(() => {
         const loadApiKey = async () => {
             try {
-                const keyFromStore = await getGeminiApiKey();
+                const keyFromStore = await settingsStore.geminiApiKey;
                 setApiKey(keyFromStore || null);
                 setInputValue(keyFromStore || '');
             } catch (error) {
@@ -89,7 +89,7 @@ const GeminiApiSettings: React.FC = () => {
         }
 
         try {
-            await setGeminiApiKey(inputValue);
+            settingsStore.geminiApiKey = inputValue;
             setApiKey(inputValue);
             setStatus({ message: 'API key saved successfully!', type: 'success' });
             setTimeout(() => setStatus(s => s.type === 'success' ? { ...s, message: null } : s), 3000);
@@ -105,7 +105,7 @@ const GeminiApiSettings: React.FC = () => {
         setIsProcessing(true);
         setStatus({ message: 'Clearing API key...', type: 'info' });
         try {
-            await setGeminiApiKey('');
+            settingsStore.geminiApiKey = '';
             setApiKey(null);
             setInputValue('');
             setShowPassword(false);
@@ -226,4 +226,4 @@ const GeminiApiSettings: React.FC = () => {
     );
 };
 
-export default GeminiApiSettings;
+export default GeminiApiKey;

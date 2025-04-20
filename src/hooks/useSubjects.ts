@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import slugify from '../utils/Slugify';
-import { getDb } from '../db';
-import { Subject, StoreNames, SyncStatus } from '../types/db.types';
-import { generateColorFromString } from '../utils/utils';
+import slugify from '@utils/Slugify';
+import { getDb } from '@db';
+import { Subject, StoreNames, SyncStatus } from '@type/db.types';
+import { generateColorFromString } from '@utils/utils';
 
 /**
  * Hook for managing subjects in the database

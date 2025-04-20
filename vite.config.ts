@@ -15,6 +15,7 @@ export default defineConfig({
 			"@contexts": path.resolve(__dirname, "./src/contexts"),
 			"@hooks": path.resolve(__dirname, "./src/hooks"),
 			"@store": path.resolve(__dirname, "./src/store"),
+			"@type": path.resolve(__dirname, "./src/types"),
 			"@utils": path.resolve(__dirname, "./src/utils"),
 			"@db": path.resolve(__dirname, "./src/db.ts"),
 		},

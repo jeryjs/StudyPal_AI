@@ -99,7 +99,7 @@ export function useGoogleDriveSync(callbacks: DriveEventCallbacks) {
     };
 
     initGapiClient();
-  }, [onError, onSyncStatusChange, onConflictDetected]);
+  }, []);
 
   // --- Auth Functions (signIn, signOut, isAuthenticated) ---
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { getDb } from '../db';
-import { Material, MaterialType, StoreNames, SyncStatus } from '../types/db.types';
+import { getDb } from '@db';
+import { Material, MaterialType, StoreNames, SyncStatus } from '@type/db.types';
 
 /**
  * Hook for managing materials in the database

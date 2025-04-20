@@ -29,6 +29,8 @@ export enum SyncStatus {
 export enum MaterialType {
 	MARKDOWN = "markdown",
 	PDF = "pdf",
+	TEXT = "text",
+	WORD = "docx",
 	LINK = "link",
 	IMAGE = "image",
 	VIDEO = "video"
@@ -44,6 +46,7 @@ export interface SyncableItem {
 	lastModified: number;    // Last modification timestamp
 	driveId?: string;        // Google Drive file ID if synced
 	syncStatus: SyncStatus;  // Current sync status
+	size?: number;           // Size in bytes (optional)
 }
 
 /**
@@ -51,6 +54,8 @@ export interface SyncableItem {
  */
 export interface Subject extends SyncableItem {
 	color?: string;          // Optional color for UI
+	icon?: string;           // Optional icon for UI
+	categories: string[];     // List of categories/tags for the subject
 }
 
 /**
@@ -58,7 +63,7 @@ export interface Subject extends SyncableItem {
  */
 export interface Chapter extends SyncableItem {
 	subjectId: string;       // Parent subject ID
-	order?: number;          // Optional order within subject
+	number: number;         // Chapter number (for ordering)
 }
 
 /**

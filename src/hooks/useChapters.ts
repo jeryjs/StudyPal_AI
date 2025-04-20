@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import slugify from '../utils/Slugify';
-import { getDb } from '../db';
-import { Chapter, StoreNames, SyncStatus } from '../types/db.types';
+import slugify from '@utils/Slugify';
+import { getDb } from '@db';
+import { Chapter, StoreNames, SyncStatus } from '@type/db.types';
 
 /**
  * Hook for managing chapters in the database

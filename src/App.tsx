@@ -13,7 +13,7 @@ import SettingsPage from '@pages/SettingsPage';
 import CopilotPage from '@pages/CopilotPage';
 import LearnPage from '@pages/LearnPage';
 import SubjectsPage from '@pages/SubjectsPage';
-import TodoPage from '@pages/TodoPage'; // Corrected import name
+import TodoPage from '@pages/TodoPage';
 import QuizPage from '@pages/QuizPage';
 
 function App() {
@@ -22,19 +22,23 @@ function App() {
   const isCopilotRoute = location.pathname === '/copilot';
 
   // Sidebar State & Responsiveness
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [isSidebarOpen, setIsSidebarOpen] = useState(localStorage.getItem('sidebarOpen') === 'true' && !isMobile);
 
   const handleSidebarToggle = () => {
     setIsSidebarOpen(!isSidebarOpen);
+    if (!isMobile) {
+      localStorage.setItem('sidebarOpen', (!isSidebarOpen).toString());
+    }
   };
+
+  console.log(`Sidebar Open: ${isSidebarOpen}`); // Debugging log
+  
 
   const sidebarWidth = 260; // Slightly wider sidebar
   const collapsedSidebarWidth = 80; // Wider collapsed sidebar
 
   const sidebarVariant = isMobile ? 'temporary' : 'persistent';
-  // Drawer open state: controls temporary visibility and persistent expansion
-  const drawerOpenState = isMobile ? isSidebarOpen : isSidebarOpen;
 
   return (
     <>
@@ -43,10 +47,7 @@ function App() {
 
         {/* AppBar for mobile */}
         {isMobile && !isCopilotRoute && (
-          <AppBar position="fixed" sx={{
-            zIndex: (theme) => theme.zIndex.drawer + 1,
-            // Styling is handled by ThemeContext overrides
-          }}>
+          <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
             <Toolbar>
               <IconButton
                 color="inherit"
@@ -67,7 +68,7 @@ function App() {
         {/* Sidebar */}
           <Sidebar
             variant={sidebarVariant}
-            open={drawerOpenState} // Controls visibility/state
+            open={isSidebarOpen}
             onToggle={handleSidebarToggle}
             width={sidebarWidth}
             collapsedWidth={collapsedSidebarWidth}

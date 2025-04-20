@@ -27,10 +27,10 @@ import {
     Typography
 } from '@mui/material';
 import React, { useEffect, useRef, useState } from 'react';
-// Import the context hook
-import { SyncStatusState, useSyncContext } from '@contexts/SyncContext'; 
-// Import DB functions for manual import/export
+
+import { useSyncContext } from '@contexts/SyncContext'; 
 import { exportDbToJson, importDbFromJson } from '@db';
+import { SyncStatus } from '@type/db.types';
 
 // Helper function to format timestamp
 const formatTimestamp = (timestamp: number | null): string => {
@@ -39,7 +39,7 @@ const formatTimestamp = (timestamp: number | null): string => {
 };
 
 // Map sync status to UI elements
-const syncStatusMap: { [key in SyncStatusState]: { text: string; color: string; icon: React.ReactElement } } = {
+const syncStatusMap: { [key in SyncStatus]: { text: string; color: string; icon: React.ReactElement } } = {
     idle: { text: 'Idle', color: 'default', icon: <CloudSyncIcon fontSize="small" /> },
     checking: { text: 'Checking...', color: 'info', icon: <CircularProgress size={16} /> },
     syncing_up: { text: 'Syncing to Drive...', color: 'warning', icon: <CircularProgress size={16} /> },
@@ -47,6 +47,7 @@ const syncStatusMap: { [key in SyncStatusState]: { text: string; color: string; 
     up_to_date: { text: 'Up to date', color: 'success', icon: <CheckCircleIcon fontSize="small" /> },
     conflict: { text: 'Conflict detected', color: 'error', icon: <SyncProblemIcon fontSize="small" /> },
     error: { text: 'Sync Error', color: 'error', icon: <ErrorIcon fontSize="small" /> },
+    pending: { text: 'Not Synced to Drive', color: 'default', icon: <CloudSyncIcon fontSize="small" /> }
 };
 
 const GoogleDriveSync: React.FC = () => {

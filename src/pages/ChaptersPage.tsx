@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router';
 import {
     Box,
     Typography,
-    Grid as MuiGrid, // Keep alias
+    Grid,
     Button,
     Alert,
     Divider,
@@ -14,7 +14,6 @@ import {
     Snackbar,
     Breadcrumbs,
     Chip,
-    LinearProgress // Keep for potential top-level progress
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
@@ -23,26 +22,18 @@ import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import { useSubjects } from '@hooks/useSubjects';
 import { useChapters } from '@hooks/useChapters';
 import { useMaterials } from '@hooks/useMaterials';
-// import { useGoogleDriveSync } from '@hooks/useGoogleDriveSync';
-
-// Types
-import { Subject, Chapter, Material, MaterialType, SyncStatus } from '@type/db.types';
-
-// Utils
-// import { formatBytes } from '@utils/utils'; // Moved to components
-// import slugify from '@utils/Slugify'; // Not used directly here anymore
+// Import SyncContext if needed to trigger sync manually (optional)
+// import { useSyncContext } from '@contexts/SyncContext';
+import { Subject, Chapter, Material, MaterialType } from '@type/db.types';
 
 // Components
 import ChapterList from '@components/chapters/ChapterList';
 import MaterialsPanel from '@components/chapters/MaterialsPanel';
 import ChapterDialog from '@components/chapters/ChapterDialog';
 import MaterialViewerDialog from '@components/chapters/MaterialViewerDialog';
-import DeleteConfirmationDialog from '@components/shared/DeleteConfirmationDialog'; // Corrected path
+import DeleteConfirmationDialog from '@components/shared/DeleteConfirmationDialog';
 
-// MUI V5 Grid requires special setup
-const Grid = MuiGrid;
-
-// --- Styled Components (Keep only page-specific ones) ---
+// --- Styled Components ---
 
 const FloatingActionButton = styled(Button)(({ theme }) => ({
     position: 'fixed', // Use fixed for consistent positioning relative to viewport
@@ -74,6 +65,7 @@ const ChaptersPage: React.FC = () => {
     const [subject, setSubject] = useState<Subject | null>(null);
     const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
+    // uploadProgress now tracks the initial file reading/DB insertion phase
     const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 
     // Dialog states
@@ -85,37 +77,14 @@ const ChaptersPage: React.FC = () => {
     const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
 
     // Snackbar
-    const [snackbar, setSnackbar] = useState<{
-        open: boolean;
-        message: string;
-        severity: 'success' | 'error' | 'info' | 'warning';
-    }>({
-        open: false,
-        message: '',
-        severity: 'info',
-    });
+    const [snackbar, setSnackbar] = useState<{open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning';}>({open: false,message: '',severity: 'info'});
 
     // Hooks
     const { getSubject } = useSubjects();
-    const {
-        chapters,
-        loading: chaptersLoading,
-        error: chaptersError,
-        createChapter: createChapterHook, // Rename to avoid conflict
-        updateChapter,
-        deleteChapter
-    } = useChapters(subjectId || '');
-
-    const {
-        materials,
-        loading: materialsLoading,
-        error: materialsError,
-        createMaterial: createMaterialHook, // Rename to avoid conflict
-        updateMaterial,
-        deleteMaterial
-    } = useMaterials(selectedChapter?.id || ''); // Pass selectedChapter.id
-
-    // const { uploadFile, isUploading } = useGoogleDriveSync();
+    const { chapters, loading: chaptersLoading, error: chaptersError, createChapter, updateChapter, deleteChapter } = useChapters(subjectId || '');
+    const { materials, loading: materialsLoading, error: materialsError, createMaterial, updateMaterial, deleteMaterial } = useMaterials(selectedChapter?.id || '');
+    // Optional: Get sync context if you want to manually trigger a sync check after adding files
+    // const { backupDatabaseToDrive } = useSyncContext();
 
     // Fetch Subject Details
     useEffect(() => {
@@ -141,17 +110,17 @@ const ChaptersPage: React.FC = () => {
     }, [subjectId, getSubject, navigate]);
 
     // Auto-select first chapter when chapters load or subject changes
-    useEffect(() => {
-        if (!selectedChapter && chapters.length > 0) {
-            // Sort chapters by number before selecting the first one
-            const sorted = [...chapters].sort((a, b) => a.number - b.number);
-            setSelectedChapter(sorted[0]);
-        } else if (selectedChapter && !chapters.find(c => c.id === selectedChapter.id)) {
-            // If selected chapter is deleted, select the first available one or null
-            const sorted = [...chapters].sort((a, b) => a.number - b.number);
-            setSelectedChapter(sorted.length > 0 ? sorted[0] : null);
-        }
-    }, [chapters, selectedChapter]); // Rerun when chapters change
+    // useEffect(() => {
+    //     if (!selectedChapter && chapters.length > 0) {
+    //         // Sort chapters by number before selecting the first one
+    //         const sorted = [...chapters].sort((a, b) => a.number - b.number);
+    //         setSelectedChapter(sorted[0]);
+    //     } else if (selectedChapter && !chapters.find(c => c.id === selectedChapter.id)) {
+    //         // If selected chapter is deleted, select the first available one or null
+    //         const sorted = [...chapters].sort((a, b) => a.number - b.number);
+    //         setSelectedChapter(sorted.length > 0 ? sorted[0] : null);
+    //     }
+    // }, [chapters, selectedChapter]); // Rerun when chapters change
 
 
     // --- Handlers ---
@@ -183,7 +152,7 @@ const ChaptersPage: React.FC = () => {
                 setSnackbar({ open: true, message: 'Chapter updated successfully', severity: 'success' });
                 // No need to close dialog here, ChapterDialog handles it on success
             } else {
-                const newChapter = await createChapterHook(name, subjectId);
+                const newChapter = await createChapter(name, subjectId);
                 setSelectedChapter(newChapter);
                 setSnackbar({ open: true, message: 'Chapter created successfully', severity: 'success' });
                 // No need to close dialog here, ChapterDialog handles it on success
@@ -259,7 +228,7 @@ const ChaptersPage: React.FC = () => {
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         e.stopPropagation();
-        setIsDraggingOver(true); // Ensure it stays true while dragging over
+        setIsDraggingOver(true);
     };
 
     const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
@@ -275,97 +244,62 @@ const ChaptersPage: React.FC = () => {
         const files = Array.from(e.dataTransfer.files);
         if (files.length === 0) return;
 
-        setSnackbar({ open: true, message: `Adding ${files.length} material(s)...`, severity: 'info' });
+        setSnackbar({ open: true, message: `Adding ${files.length} material(s) locally...`, severity: 'info' });
 
         for (const file of files) {
-            const tempId = `uploading-${Date.now()}-${file.name}`;
-            setUploadProgress(prev => ({ ...prev, [tempId]: 0 }));
+            const tempId = `adding-${Date.now()}-${file.name}`; // Use 'adding' prefix
+            setUploadProgress(prev => ({ ...prev, [tempId]: 0 })); // Show initial progress
 
             try {
                 // Determine material type
-                let type: MaterialType;
+                let type: MaterialType = MaterialType.FILE; // Default fallback
                 if (file.type.startsWith('image/')) type = MaterialType.IMAGE;
                 else if (file.type === 'application/pdf') type = MaterialType.PDF;
-                else if (file.type.includes('markdown')) type = MaterialType.MARKDOWN;
                 else if (file.type.startsWith('text/')) type = MaterialType.TEXT;
-                // Add more specific types if needed (e.g., video, word)
-                else type = MaterialType.FILE; // Default fallback
+                else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') type = MaterialType.WORD;
+                else if (file.type.startsWith('video/')) type = MaterialType.VIDEO;
+                else if (file.type.startsWith('application/')) type = MaterialType.FILE;
+                else if (file.type.startsWith('text/html')) type = MaterialType.LINK;
+                else if (file.type.startsWith('application/x-www-form-urlencoded')) type = MaterialType.LINK;
+                else if (file.type.startsWith('audio/')) type = MaterialType.AUDIO;
+                else if (file.type.startsWith('application/x-ipynb+json')) type = MaterialType.JUPYTER;
 
-                // Create material record via hook (includes size)
-                const newMaterial = await createMaterialHook(
+                // Read file content as ArrayBuffer
+                const fileContent = await file.arrayBuffer();
+                setUploadProgress(prev => ({ ...prev, [tempId]: 50 })); // Indicate reading complete
+
+                // Create material record via hook
+                const newMaterial = await createMaterial(
                     file.name,
                     type,
-                    file, // content as Blob
-                    undefined, // contentUrl (set later if uploaded)
+                    fileContent, // Pass ArrayBuffer directly
+                    undefined, // sourceRef
                     selectedChapter.id,
-                    0, // progress
-                    file.size // Pass size
+                    0, // Initial user progress is 0
+                    file.size, // Pass size
                 );
 
-                // --- Upload Simulation/Integration ---
-                // Replace this simulation with actual upload logic (e.g., useGoogleDriveSync)
-                let currentProgress = 0;
-                const interval = setInterval(async () => { // Make interval callback async
-                    currentProgress += Math.random() * 15 + 5; // Simulate progress chunks
-                    if (currentProgress >= 100) {
-                        currentProgress = 100;
-                        clearInterval(interval);
+                setUploadProgress(prev => ({ ...prev, [tempId]: 100 })); // Indicate DB insertion complete
+                setSnackbar({ open: true, message: `"${newMaterial.name}" added locally. Sync pending.`, severity: 'success' });
 
-                        try {
-                            // Update material in DB once "upload" is complete
-                            await updateMaterial({
-                                id: newMaterial.id,
-                                progress: 100,
-                                // If using Google Drive:
-                                // driveId: uploadedFileDriveId,
-                                // contentUrl: webViewLink,
-                                // driveLastModified: modificationTimestamp,
-                                syncStatus: SyncStatus.SYNCED // Or PENDING if further action needed
-                            });
-                            setSnackbar({ open: true, message: `"${newMaterial.name}" added successfully`, severity: 'success' });
-                        } catch (updateError) {
-                             console.error("Error finalizing material update:", updateError);
-                             setSnackbar({ open: true, message: `Error finalizing "${newMaterial.name}"`, severity: 'error' });
-                             // Optionally update material state to show error
-                             await updateMaterial({ id: newMaterial.id, syncStatus: SyncStatus.ERROR });
-                        } finally {
-                             // Clear progress tracking after a short delay
-                             setTimeout(() => {
-                                 setUploadProgress(prev => {
-                                     const newState = { ...prev };
-                                     delete newState[tempId];
-                                     return newState;
-                                 });
-                             }, 1500); // Delay to allow user to see 100%
-                        }
-
-                    } else {
-                         // Update intermediate progress in DB
-                         try {
-                             await updateMaterial({ id: newMaterial.id, progress: Math.round(currentProgress) });
-                         } catch (progressUpdateError) {
-                             console.warn("Error updating material progress:", progressUpdateError);
-                             // Decide if you want to stop the upload or just log the error
-                         }
-                    }
-
-                    // Update UI progress state regardless of DB update success for responsiveness
-                    setUploadProgress(prev => ({ ...prev, [tempId]: Math.round(currentProgress) }));
-
-                }, 300); // Simulate network latency/upload speed
+                // Optional: Trigger a sync check if desired after adding files
+                // backupDatabaseToDrive(); // This will initiate the sync process including pending items
 
             } catch (error) {
                 console.error("Error handling dropped file:", file.name, error);
                 setSnackbar({ open: true, message: `Failed to add material: ${file.name}`, severity: 'error' });
-                // Clean up progress state for the failed file
-                setUploadProgress(prev => {
-                    const newState = { ...prev };
-                    delete newState[tempId];
-                    return newState;
-                });
+            } finally {
+                // Clean up progress state after a short delay, regardless of success/failure
+                setTimeout(() => {
+                    setUploadProgress(prev => {
+                        const newState = { ...prev };
+                        delete newState[tempId];
+                        return newState;
+                    });
+                }, 1500); // Delay to allow user to see completion/error
             }
         }
-    }, [selectedChapter, createMaterialHook, updateMaterial, setSnackbar]); // Dependencies
+    }, [selectedChapter, createMaterial, setSnackbar /*, backupDatabaseToDrive */]); // Add backupDatabaseToDrive if using manual trigger
 
     // Filter materials for selected chapter (already done in MaterialsPanel, but keep for potential future use)
     const materialsForSelectedChapter = useMemo(() => {
@@ -373,7 +307,6 @@ const ChaptersPage: React.FC = () => {
         // Ensure materials are filtered correctly if materials hook doesn't filter
         return materials.filter(m => m.chapterId === selectedChapter.id);
     }, [materials, selectedChapter]);
-
 
     // --- Render ---
 
@@ -453,7 +386,7 @@ const ChaptersPage: React.FC = () => {
                         onDragEnter={handleDragEnter}
                         onDragLeave={handleDragLeave}
                         isDraggingOver={isDraggingOver}
-                        loading={materialsLoading && !!selectedChapter} // Only show loading if a chapter is selected
+                        loading={materialsLoading && !!selectedChapter}
                         error={materialsError}
                         uploadProgress={uploadProgress}
                     />

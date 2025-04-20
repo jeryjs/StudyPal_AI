@@ -29,6 +29,7 @@ import {
     ArrowDownward as DownloadIcon,
     ArrowUpward as UploadIcon
 } from '@mui/icons-material';
+import { SyncStatus } from '@type/db.types';
 
 // --- Constants ---
 const LAST_SYNC_TIMESTAMP_KEY = 'studyPalLastSyncTimestamp';
@@ -45,7 +46,7 @@ export interface SyncContextType {
   signOut: () => Promise<void>;
   
   // Sync state
-  syncStatus: SyncStatusState;
+  syncStatus: SyncStatus;
   error: Error | null;
   lastSuccessfulSync: number | null;
   
@@ -81,7 +82,7 @@ const SyncContext = createContext<SyncContextType | null>(null);
 // Provider component
 export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Sync state managed by context
-  const [syncStatus, setSyncStatus] = useState<SyncStatusState>('idle');
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(SyncStatus.IDLE);
   const [error, setError] = useState<Error | null>(null);
   const [conflictDetails, setConflictDetails] = useState<{ 
     driveModified: number; 
@@ -205,10 +206,10 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
    */
   const checkInitialSyncState = useCallback(async () => {
     // Set status immediately
-    setSyncStatus('checking');
+    setSyncStatus((SyncStatus.CHECKING));
 
     if (!authState.isAuthenticated) {
-      setSyncStatus('idle'); // Reset if not authenticated
+      setSyncStatus(SyncStatus.IDLE); // Reset if not authenticated
       return;
     }
 
@@ -230,7 +231,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
         } else {
           // No Drive backup, no local changes
           console.log('No Drive backup found, no local changes.');
-          setSyncStatus('up_to_date');
+          setSyncStatus(SyncStatus.UP_TO_DATE);
         }
         return;
       }      // Backup exists on Drive
@@ -246,7 +247,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
           localModified: Date.now(),
           driveSize // Pass driveSize
         }); 
-        setSyncStatus('conflict');
+        setSyncStatus(SyncStatus.CONFLICT);
       } else if (driveModifiedTime > localLastSync + 1000) { // Add buffer for clock skew
         // Drive file is newer than last sync
         if (isDbDirtyRef.current) {
@@ -257,7 +258,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
             localModified: Date.now(),
             driveSize // Pass driveSize
           });
-          setSyncStatus('conflict');
+          setSyncStatus(SyncStatus.CONFLICT);
         } else {
           // No local changes, Drive is newer -> Prompt user (safest default)
           console.log('Drive backup is newer than last sync, no local changes detected. Prompting user.');
@@ -266,7 +267,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
             localModified: localLastSync,
             driveSize // Pass driveSize
           });
-          setSyncStatus('conflict');
+          setSyncStatus(SyncStatus.CONFLICT);
         }
       } else if (isDbDirtyRef.current && localLastSync >= driveModifiedTime) {
         // Drive is not newer, but local has changed -> Safe to backup
@@ -275,12 +276,12 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
       } else {
         // Drive is not newer, local hasn't changed -> Up to date
         console.log('Local DB and Drive backup are in sync.');
-        setSyncStatus('up_to_date');
+        setSyncStatus(SyncStatus.UP_TO_DATE);
       }
     } catch (err: any) {
       console.error('Error during initial sync check:', err);
       setError(err instanceof Error ? err : new Error('Failed to check sync status.'));
-      setSyncStatus('error');
+      setSyncStatus(SyncStatus.ERROR);
     }
   }, [lastSuccessfulSync, authState.isAuthenticated, getBackupMetadata]); // Removed backupDatabaseToDrive from dependency array
 

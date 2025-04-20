@@ -28,7 +28,7 @@ const GlassmorphicPaper = styled(Paper)(({ theme }) => ({
     WebkitBackdropFilter: 'blur(12px) saturate(180%)',
     border: `1px solid ${alpha(theme.palette.divider, 0.15)}`,
     borderRadius: theme.shape.borderRadius * 2,
-    padding: theme.spacing(3),
+    // padding: theme.spacing(3),
     // marginBottom: theme.spacing(3), // Removed margin bottom as it's handled by Grid spacing
     overflow: 'hidden',
     height: '100%', // Ensure it takes full height of the grid item
@@ -84,7 +84,7 @@ const ChapterList: React.FC<ChapterListProps> = ({
 
     return (
         <GlassmorphicPaper>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p:2 }}>
                 <Typography variant="h6">Chapters</Typography>
                 <Button
                     startIcon={<AddIcon />}

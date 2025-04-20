@@ -35,18 +35,18 @@ class MaterialsStore extends DBStore<Material> {
    * @param type - The material type
    * @param chapterId - The chapter ID this material belongs to
    * @param content - Optional content of the material
-   * @param contentUrl - Optional URL for external resources
+   * @param sourceRef - Optional URL for external resources
    * @param progress - Optional completion progress (0-100%)
    * @returns The created material
    */
   async createMaterial(
     name: string,
-    type: MaterialType,
     chapterId: string,
-    content?: string | Blob,
-    contentUrl?: string,
+    type: MaterialType,
+    content?: string | ArrayBuffer,
+    sourceRef?: string,
     progress: number = 0,
-    size?: number // Add size parameter
+    size?: number
   ): Promise<Material> {
     const timestamp = Date.now();
     const id = uuidv4(); // Using UUID for material IDs
@@ -57,9 +57,9 @@ class MaterialsStore extends DBStore<Material> {
       type,
       chapterId,
       content,
-      contentUrl,
+      sourceRef,
       progress,
-      size, // Include size
+      size,
       createdAt: timestamp,
       lastModified: timestamp,
       syncStatus: SyncStatus.PENDING
@@ -85,7 +85,7 @@ class MaterialsStore extends DBStore<Material> {
       ...material,
       lastModified: Date.now(),
       // Ensure syncStatus is updated correctly, only set to PENDING if relevant fields changed
-      syncStatus: existingMaterial.syncStatus === SyncStatus.SYNCED && (material.name !== existingMaterial.name || material.content !== existingMaterial.content) 
+      syncStatus: existingMaterial.syncStatus === SyncStatus.UP_TO_DATE && (material.name !== existingMaterial.name || material.content !== existingMaterial.content) 
                   ? SyncStatus.PENDING 
                   : existingMaterial.syncStatus
     };

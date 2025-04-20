@@ -62,8 +62,8 @@ const MaterialViewerDialog: React.FC<MaterialViewerProps> = ({ open, onClose, ma
     const renderContent = () => {
         switch (material.type) {
             case MaterialType.IMAGE:
-                if (material.contentUrl) {
-                    return <Box component="img" src={material.contentUrl} alt={material.name} sx={{ maxWidth: '100%', maxHeight: '70vh', display: 'block', margin: 'auto' }} />;
+                if (material.sourceRef) {
+                    return <Box component="img" src={material.sourceRef} alt={material.name} sx={{ maxWidth: '100%', maxHeight: '70vh', display: 'block', margin: 'auto' }} />;
                 } else if (material.content instanceof Blob) {
                     const objectUrl = URL.createObjectURL(material.content);
                     return (
@@ -79,11 +79,11 @@ const MaterialViewerDialog: React.FC<MaterialViewerProps> = ({ open, onClose, ma
                 return <Typography>Unable to display image content</Typography>;
 
             case MaterialType.PDF:
-                if (material.contentUrl) {
+                if (material.sourceRef) {
                     return (
                         <Box sx={{ width: '100%', height: '70vh' }}>
                             <iframe
-                                src={material.contentUrl}
+                                src={material.sourceRef}
                                 width="100%"
                                 height="100%"
                                 style={{ border: 'none' }}
@@ -115,7 +115,7 @@ const MaterialViewerDialog: React.FC<MaterialViewerProps> = ({ open, onClose, ma
                         <Button
                             variant="outlined"
                             color="primary"
-                            href={material.contentUrl || ''}
+                            href={material.sourceRef || ''}
                             target="_blank"
                             rel="noopener noreferrer"
                             startIcon={<LinkIcon />}
@@ -123,13 +123,12 @@ const MaterialViewerDialog: React.FC<MaterialViewerProps> = ({ open, onClose, ma
                             Open Link
                         </Button>
                         <Typography variant="caption" display="block" sx={{ mt: 2, wordBreak: 'break-all' }}>
-                            {material.contentUrl}
+                            {material.sourceRef}
                         </Typography>
                     </Box>
                 );
 
             case MaterialType.TEXT:
-            case MaterialType.MARKDOWN:
                 return (
                     <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1, maxHeight: '70vh', overflowY: 'auto' }}>
                         <Typography component="pre" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>

@@ -45,11 +45,11 @@ export function useMaterials(chapterId?: string) {
   const createMaterial = useCallback(async (
     name: string, 
     type: MaterialType, 
-    content?: string | Blob,
-    contentUrl?: string,
+    content?: string | ArrayBuffer,
+    sourceRef?: string,
     targetChapterId?: string,
     progress: number = 0,
-    size?: number // Add size parameter
+    size?: number
   ): Promise<Material> => {
     try {
       const chapterToUse = targetChapterId || chapterId;
@@ -60,13 +60,13 @@ export function useMaterials(chapterId?: string) {
       
       // Create the material
       const newMaterial = await materialsStore.createMaterial(
-        name, 
-        type, 
-        chapterToUse, 
-        content, 
-        contentUrl,
-        progress,
-        size // Pass size to the store method
+        name=name, 
+        chapterId=chapterToUse, 
+        type=type, 
+        content=content, 
+        sourceRef=sourceRef,
+        progress=progress,
+        size=size
       );
       
       // Update local state if this belongs to our current chapter

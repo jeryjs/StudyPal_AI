@@ -287,7 +287,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
                 {!loading && !error && selectedChapter && displayItems.length > 0 && (
                     <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={2}>
                         {displayItems.map((item) => (
-                            <MaterialCard key={item.id} elevation={1}>                                {/* Render differently if uploading - use proper type guard */}
+                            <MaterialCard key={item.id} elevation={1}>  {/* Render differently if uploading - use proper type guard */}
                                 {'isUploading' in item ? (
                                     <CardContent sx={{ textAlign: 'center', opacity: 0.7 }}>
                                         <CircularProgress variant="determinate" value={item.progress} sx={{ mb: 1 }} />
@@ -318,7 +318,6 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
                                             <Typography variant="caption" color="text.secondary">
                                                 {formatBytes(item.size || 0)}
                                             </Typography>
-                                            {/* Optional: Show progress if < 100, even if not actively uploading */}
                                             {item.progress !== undefined && item.progress < 100 && item.progress > 0 && (
                                                  <Box sx={{ width: '40%' }}>
                                                      <LinearProgress variant="determinate" value={item.progress} sx={{ height: 4, borderRadius: 2 }} />

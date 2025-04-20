@@ -1,13 +1,6 @@
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import {
-	Subject,
-	Chapter,
-	Material,
-	SyncStatus,
-	StoreNames,
-	SyncQueueItem,
-	MaterialType
-} from './types/db.types';
+import { openDB, DBSchema, IDBPDatabase, IDBPTransaction, StoreNames as IDBStoreNames, IndexNames as IDBIndexNames } from "idb";
+// Import the new SyncStatus enum
+import { Material, MaterialType, SyncStatus, Chapter, Subject, SyncQueueItem } from "./types/db.types"; 
 
 /**
  * Application database name.
@@ -20,15 +13,32 @@ export const DB_NAME = "StudyPalDB";
 export const DB_VERSION = 1;
 
 /**
+ * Names of object stores in the database.
+ */
+export enum StoreNames {
+	SETTINGS = "settings",
+	SUBJECTS = "subjects",
+	CHAPTERS = "chapters",
+	MATERIALS = "materials",
+	SYNC_QUEUE = "syncQueue"
+}
+
+// Define specific index names type for better type safety
+type SubjectIndexNames = 'by-syncStatus';
+type ChapterIndexNames = 'by-subjectId' | 'by-syncStatus';
+type MaterialIndexNames = 'by-chapterId' | 'by-syncStatus';
+type SyncQueueIndexNames = 'by-timestamp';
+
+/**
  * The base database schema for StudyPal app.
- * Uses type definitions from @types/db.types.ts
  */
 export interface StudyPalDB extends DBSchema {
 	[StoreNames.SETTINGS]: { key: string; value: any };
-	[StoreNames.SUBJECTS]: { key: string; value: Subject };
-	[StoreNames.CHAPTERS]: { key: string; value: Chapter; indexes: { 'by-subject': string } };
-	[StoreNames.MATERIALS]: { key: string; value: Material; indexes: { 'by-chapter': string; 'by-syncStatus': string } };
-	[StoreNames.SYNC_QUEUE]: { key: string; value: SyncQueueItem; indexes: { 'by-timestamp': number } };
+	// Use the new SyncStatus enum for index value types
+	[StoreNames.SUBJECTS]: { key: string; value: Subject; indexes: { [N in SubjectIndexNames]: SyncStatus } }; 
+	[StoreNames.CHAPTERS]: { key: string; value: Chapter; indexes: { 'by-subjectId': string, 'by-syncStatus': SyncStatus } }; 
+	[StoreNames.MATERIALS]: { key: string; value: Material; indexes: { 'by-chapterId': string, 'by-syncStatus': SyncStatus } }; 
+	[StoreNames.SYNC_QUEUE]: { key: string; value: SyncQueueItem; indexes: { [N in SyncQueueIndexNames]: number } };
 }
 
 // Type for DB export format
@@ -46,8 +56,30 @@ let dbPromise: Promise<IDBPDatabase<StudyPalDB>> | null = null;
 export function getDb(): Promise<IDBPDatabase<StudyPalDB>> {
 	if (!dbPromise) {
 		dbPromise = openDB<StudyPalDB>(DB_NAME, DB_VERSION, {
-			upgrade(db, oldVersion, newVersion) {
+			upgrade(db, oldVersion, newVersion, transaction: IDBPTransaction<StudyPalDB, IDBStoreNames<StudyPalDB>[], "versionchange"> | null) {
 				console.log(`Upgrading database from version ${oldVersion} to ${newVersion}`);
+
+				if (!transaction) {
+					console.error("Upgrade transaction is null, cannot proceed with index creation.");
+					return;
+				}
+
+				// Helper to create index if it doesn't exist - strongly typed
+				const ensureIndex = <SName extends StoreNames,
+					IdxName extends IDBIndexNames<StudyPalDB, SName>>(
+					storeName: SName,
+					indexName: IdxName,
+					keyPath: string | string[],
+					options?: IDBIndexParameters
+				) => {
+					const store = (transaction as IDBPTransaction<StudyPalDB, IDBStoreNames<StudyPalDB>[], "versionchange">).objectStore(storeName);
+					if (!store.indexNames.contains(indexName)) {
+						store.createIndex(indexName, keyPath, options);
+						console.log(`Created index ${indexName as string} on ${storeName}`);
+					}
+				};
+
+				// Settings store
 				if (!db.objectStoreNames.contains(StoreNames.SETTINGS)) {
 					db.createObjectStore(StoreNames.SETTINGS);
 					console.log(`Created object store: ${StoreNames.SETTINGS}`);
@@ -55,34 +87,42 @@ export function getDb(): Promise<IDBPDatabase<StudyPalDB>> {
 
 				// Subjects store
 				if (!db.objectStoreNames.contains(StoreNames.SUBJECTS)) {
-					db.createObjectStore(StoreNames.SUBJECTS, { keyPath: 'id' });
-					console.log(`Created object store: ${StoreNames.SUBJECTS}`);
+					const store = db.createObjectStore(StoreNames.SUBJECTS, { keyPath: 'id' });
+					store.createIndex('by-syncStatus', 'syncStatus');
+					console.log(`Created object store: ${StoreNames.SUBJECTS} with index by-syncStatus`);
+				} else {
+					ensureIndex(StoreNames.SUBJECTS, 'by-syncStatus', 'syncStatus');
 				}
 
 				// Chapters store
 				if (!db.objectStoreNames.contains(StoreNames.CHAPTERS)) {
-					const chapterStore = db.createObjectStore(StoreNames.CHAPTERS, { keyPath: 'id' });
-					// Create index to find chapters by subject ID
-					chapterStore.createIndex('by-subject', 'subjectId');
-					console.log(`Created object store: ${StoreNames.CHAPTERS}`);
+					const store = db.createObjectStore(StoreNames.CHAPTERS, { keyPath: 'id' });
+					store.createIndex('by-subjectId', 'subjectId');
+					store.createIndex('by-syncStatus', 'syncStatus');
+					console.log(`Created object store: ${StoreNames.CHAPTERS} with indexes by-subjectId, by-syncStatus`);
+				} else {
+					ensureIndex(StoreNames.CHAPTERS, 'by-subjectId', 'subjectId');
+					ensureIndex(StoreNames.CHAPTERS, 'by-syncStatus', 'syncStatus');
 				}
 
 				// Materials store
 				if (!db.objectStoreNames.contains(StoreNames.MATERIALS)) {
-					const materialsStore = db.createObjectStore(StoreNames.MATERIALS, { keyPath: 'id' });
-					// Create index to find materials by chapter ID
-					materialsStore.createIndex('by-chapter', 'chapterId');
-					// Create index to find materials by sync status
-					materialsStore.createIndex('by-syncStatus', 'syncStatus');
-					console.log(`Created object store: ${StoreNames.MATERIALS}`);
+					const store = db.createObjectStore(StoreNames.MATERIALS, { keyPath: 'id' });
+					store.createIndex('by-chapterId', 'chapterId');
+					store.createIndex('by-syncStatus', 'syncStatus');
+					console.log(`Created object store: ${StoreNames.MATERIALS} with indexes by-chapterId, by-syncStatus`);
+				} else {
+					ensureIndex(StoreNames.MATERIALS, 'by-chapterId', 'chapterId');
+					ensureIndex(StoreNames.MATERIALS, 'by-syncStatus', 'syncStatus');
 				}
 
 				// Sync Queue store
 				if (!db.objectStoreNames.contains(StoreNames.SYNC_QUEUE)) {
-					const syncQueueStore = db.createObjectStore(StoreNames.SYNC_QUEUE, { keyPath: 'id' });
-					// Create index to order items by timestamp
-					syncQueueStore.createIndex('by-timestamp', 'timestamp');
-					console.log(`Created object store: ${StoreNames.SYNC_QUEUE}`);
+					const store = db.createObjectStore(StoreNames.SYNC_QUEUE, { keyPath: 'id' });
+					store.createIndex('by-timestamp', 'timestamp');
+					console.log(`Created object store: ${StoreNames.SYNC_QUEUE} with index by-timestamp`);
+				} else {
+					ensureIndex(StoreNames.SYNC_QUEUE, 'by-timestamp', 'timestamp');
 				}
 			},
 			blocked() {
@@ -211,106 +251,78 @@ export class DBStore<T> {
 // --- Database Export/Import Functions ---
 
 /**
- * Exports all data from specified IndexedDB stores to a JSON object.
+ * Exports all data from specified IndexedDB stores to a JSON string.
+ * Optoinally, Strips 'content' (ArrayBuffer) from materials before export.
  */
-export const exportDbToJson = async (): Promise<string> => {
+export const exportDbToJson = async (stripContent = true): Promise<string> => {
 	const db = await getDb();
 	const exportData: DbExport = {};
-	const storesToExport: StoreNames[] = [
-		StoreNames.SETTINGS,
-		StoreNames.SUBJECTS,
-		StoreNames.CHAPTERS,
-		StoreNames.MATERIALS,
-	];
+	const storesToExport: StoreNames[] = [StoreNames.SETTINGS, StoreNames.SUBJECTS, StoreNames.CHAPTERS, StoreNames.MATERIALS];
 
-	console.log('Starting DB export...');
+	const tx = db.transaction(storesToExport, 'readonly');
+
 	for (const storeName of storesToExport) {
-		try {
-			if (storeName === StoreNames.SETTINGS) {
-				// Handle settings store: export as array of { key: string, value: any }
-				const allKeys = await db.getAllKeys(storeName);
-				// Explicitly type the array
-				const settingsData: { key: string; value: any }[] = [];
-				for (const key of allKeys) {
-					const value = await db.get(storeName, key);
-					settingsData.push({ key, value });
+		const store = tx.objectStore(storeName);
+		let items = await store.getAll();
+
+		// When stripContent is true, strip content from all materials
+		if (storeName === StoreNames.MATERIALS) {
+			items = items.map((item: Material) => {
+				if (stripContent) {
+					const { content, ...rest } = item;
+					return rest; // Return without content
 				}
-				exportData[storeName] = settingsData;
-				console.log(`Exported ${settingsData.length} items from ${storeName}`);
-			} else {
-				// Handle other stores (assuming they have an 'id' property as key)
-				const allItems = await db.getAll(storeName);
-				exportData[storeName] = allItems;
-				console.log(`Exported ${allItems.length} items from ${storeName}`);
-			}
-		} catch (err) {
-			console.error(`Error exporting store ${storeName}:`, err);
-			throw new Error(`Failed to export data from ${storeName}`);
+				return item;
+			});
 		}
+
+		exportData[storeName] = items;
 	}
-	console.log('DB export finished.');
-	return JSON.stringify(exportData);
+
+	await tx.done;
+	console.log("DB Export: Exported stores:", storesToExport.join(', '));
+	// Use null replacer, 2 spaces for readability
+	return JSON.stringify(exportData, null, 2); 
 };
 
 /**
- * Imports data from a JSON object into IndexedDB, clearing existing data.
+ * Imports data from a JSON string into IndexedDB, clearing existing data.
+ * Assumes imported materials might not have 'content' if they are file types.
  */
 export const importDbFromJson = async (jsonString: string): Promise<void> => {
-	let importData: DbExport;
-	try {
-		importData = JSON.parse(jsonString);
-	} catch (err) {
-		console.error('Failed to parse backup JSON:', err);
-		throw new Error('Invalid backup file format.');
-	}
-
 	const db = await getDb();
-	const storesToImport: StoreNames[] = [
-		StoreNames.SETTINGS,
-		StoreNames.SUBJECTS,
-		StoreNames.CHAPTERS,
-		StoreNames.MATERIALS,
-		StoreNames.SYNC_QUEUE, // Clear sync queue on restore
-	];
+	const importData: DbExport = JSON.parse(jsonString);
+	const storesToImport = Object.keys(importData) as StoreNames[];
 
-	console.log('Starting DB import...');
-	const tx = db.transaction(storesToImport, 'readwrite');
-	try {
-		for (const storeName of storesToImport) {
+	// Use 'readwrite' for clearing and adding
+	const tx = db.transaction(storesToImport, 'readwrite'); 
+
+	console.log("DB Import: Starting import for stores:", storesToImport.join(', '));
+
+	for (const storeName of storesToImport) {
+		if (importData[storeName]) {
 			const store = tx.objectStore(storeName);
-			await store.clear(); // Clear existing data
-			console.log(`Cleared store: ${storeName}`);
-
-			const itemsToImport = importData[storeName];
-			if (itemsToImport && Array.isArray(itemsToImport)) {
-				if (storeName === StoreNames.SETTINGS) {
-					// Handle settings store: import from array of { key: string, value: any }
-					for (const item of itemsToImport) {
-						if (item && typeof item.key === 'string') {
-							// Use put(value, key) for settings
-							await store.put(item.value, item.key);
-						} else {
-							console.warn(`Skipping invalid settings item during import:`, item);
-						}
-					}
+			await store.clear(); // Clear existing data in the store
+			console.log(`DB Import: Cleared store ${storeName}`);
+			let count = 0;
+			for (const item of importData[storeName]!) {
+				// Use 'put' which handles both insert and update based on key
+				// Assuming items have a valid 'id' property to be used as the key
+				if (item && typeof item.id !== 'undefined') { 
+					await store.put(item, item.id); 
+					count++;
 				} else {
-					// Handle other stores
-					for (const item of itemsToImport) {
-						if (item) {
-							await store.put(item);
-						} else {
-							console.warn(`Skipping invalid item in ${storeName} during import:`, item);
-						}
-					}
+					console.warn(`DB Import: Skipping item in ${storeName} due to missing or invalid id:`, item);
 				}
-				console.log(`Imported ${itemsToImport.length} items into ${storeName}`);
 			}
+			console.log(`DB Import: Imported ${count} items into ${storeName}`);
+		} else {
+			console.warn(`DB Import: No data found for store ${storeName} in JSON.`);
 		}
-		await tx.done;
-		console.log('DB import finished successfully.');
-	} catch (err) {
-		console.error('Error during DB import transaction:', err);
-		tx.abort();
-		throw new Error('Failed to import data into the database.');
 	}
+
+	await tx.done;
+	console.log("DB Import: Import process completed.");
+	// Dispatch a generic event or specific events if needed after import
+	document.dispatchEvent(new CustomEvent('dbChanged')); 
 };

@@ -14,13 +14,17 @@ export enum StoreNames {
 }
 
 /**
- * Sync status for items that can be synchronized with Google Drive
+ * Sync status for items, reflecting Drive sync state.
  */
 export enum SyncStatus {
-	SYNCED = "synced",     // Item is synced with Google Drive
-	PENDING = "pending",   // Item has local changes that need to be synced
-	ERROR = "error",       // Error occurred during sync
-	CONFLICT = "conflict"  // Conflict detected between local and remote versions
+	IDLE = "idle",				// IDLE for local-only items
+	CHECKING = "checking",		// CHECKING for items being checked for changes
+	SYNCING_UP = "syncing_up",	// Syncing up to Drive
+	SYNCING_DOWN = "syncing_down", // Syncing up to Drive or down from Drive
+	UP_TO_DATE = "up_to_date",	// UP_TO_DATE for synced items
+	CONFLICT = "conflict",		// CONFLICT for sync conflicts
+	ERROR = "error",			// ERROR for sync errors
+    PENDING = "pending",		// PENDING for local-only changes before first sync
 }
 
 /**
@@ -28,13 +32,14 @@ export enum SyncStatus {
  */
 export enum MaterialType {
 	FILE = "file",
-	MARKDOWN = "markdown",
 	PDF = "pdf",
 	TEXT = "text",
 	WORD = "docx",
 	LINK = "link",
 	IMAGE = "image",
-	VIDEO = "video"
+	VIDEO = "video",
+	AUDIO = "audio",
+	JUPYTER = "jupyter",
 }
 
 /**
@@ -45,8 +50,8 @@ export interface SyncableItem {
 	name: string;            // Display name
 	createdAt: number;       // Creation timestamp
 	lastModified: number;    // Last modification timestamp
-	driveId?: string;        // Google Drive file ID if synced
-	syncStatus: SyncStatus;  // Current sync status
+	driveId?: string;        // Google Drive file/folder ID if synced
+	syncStatus: SyncStatus;  // Use the newly defined SyncStatus enum
 	size?: number;           // Size in bytes (optional)
 }
 
@@ -64,7 +69,7 @@ export interface Subject extends SyncableItem {
  */
 export interface Chapter extends SyncableItem {
 	subjectId: string;       // Parent subject ID
-	number: number;         // Chapter number (for ordering)
+	number: number;         // Chapter number (for ordering) (can be decimal)
 }
 
 /**
@@ -73,10 +78,9 @@ export interface Chapter extends SyncableItem {
 export interface Material extends SyncableItem {
 	chapterId: string;       // Parent chapter ID
 	type: MaterialType;      // Material type
-	content?: string | Blob; // Content or data
-	contentUrl?: string;     // URL for external resources
-	driveLastModified?: number; // Last modification time from Drive
-	progress?: number;      // material completion progress (0-100%)
+	content?: string | ArrayBuffer; // string for text, ArrayBuffer for cached binary files (PDF, images, etc.)
+	sourceRef?: string;     // Optional reference (URL or note) for where the material came from
+	progress?: number;      // material completion progress (0-100% read or covered, etc)
 }
 
 /**

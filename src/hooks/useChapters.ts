@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import slugify from '@utils/Slugify';
-import { getDb } from '@db';
-import { Chapter, StoreNames, SyncStatus } from '@type/db.types';
+import { Chapter } from '@type/db.types';
+import { chaptersStore } from '@store/chaptersStore';
+import { materialsStore } from '@store/materialsStore';
 
 /**
  * Hook for managing chapters in the database
@@ -15,21 +15,19 @@ export function useChapters(subjectId?: string) {
   const fetchChapters = useCallback(async (targetSubjectId?: string) => {
     setLoading(true);
     try {
-      const db = await getDb();
       const subjectToQuery = targetSubjectId || subjectId;
       
       let chaptersList: Chapter[];
       
       if (subjectToQuery) {
-        // Get chapters for specific subject using the index
-        chaptersList = await db.getAllFromIndex(
-          StoreNames.CHAPTERS, 
-          'by-subject', 
-          subjectToQuery
-        );
+        // Get chapters for specific subject
+        chaptersList = await chaptersStore.getChaptersBySubject(subjectToQuery);
+        
+        // Sort by chapter number
+        chaptersList.sort((a, b) => a.number - b.number);
       } else {
         // Get all chapters if no subject ID provided
-        chaptersList = await db.getAll(StoreNames.CHAPTERS);
+        chaptersList = await chaptersStore.getAllChapters();
       }
       
       setChapters(chaptersList);
@@ -50,26 +48,14 @@ export function useChapters(subjectId?: string) {
   // Create a new chapter
   const createChapter = useCallback(async (name: string, targetSubjectId?: string): Promise<Chapter> => {
     try {
-      const timestamp = Date.now();
       const subjectToUse = targetSubjectId || subjectId;
       
       if (!subjectToUse) {
         throw new Error('Subject ID is required to create a chapter');
       }
       
-      const id = slugify(`${subjectToUse}-${name}`, true); // Using slugify with unique=true
-      
-      const newChapter: Chapter = {
-        id,
-        name,
-        subjectId: subjectToUse,
-        createdAt: timestamp,
-        lastModified: timestamp,
-        syncStatus: SyncStatus.PENDING // Mark as needing sync
-      };
-      
-      const db = await getDb();
-      await db.put(StoreNames.CHAPTERS, newChapter);
+      // Create the new chapter
+      const newChapter = await chaptersStore.createChapter(name, subjectToUse);
       
       // Update local state if this belongs to our current subject
       if (subjectToUse === subjectId) {
@@ -84,25 +70,10 @@ export function useChapters(subjectId?: string) {
   }, [subjectId]);
 
   // Update an existing chapter
-  const updateChapter = useCallback(async (updatedChapter: Chapter): Promise<Chapter> => {
+  const updateChapter = useCallback(async (updatedChapter: Partial<Chapter> & { id: string }): Promise<Chapter> => {
     try {
-      const db = await getDb();
-      
-      // Get the current chapter to merge with updates
-      const existingChapter = await db.get(StoreNames.CHAPTERS, updatedChapter.id);
-      if (!existingChapter) {
-        throw new Error(`Chapter not found: ${updatedChapter.id}`);
-      }
-      
-      // Update timestamp and sync status
-      const mergedChapter: Chapter = {
-        ...existingChapter,
-        ...updatedChapter,
-        lastModified: Date.now(),
-        syncStatus: SyncStatus.PENDING // Mark as needing sync
-      };
-      
-      await db.put(StoreNames.CHAPTERS, mergedChapter);
+      // Update the chapter
+      const mergedChapter = await chaptersStore.updateChapter(updatedChapter);
       
       // Update local state if this belongs to our current subject
       if (mergedChapter.subjectId === subjectId) {
@@ -121,22 +92,19 @@ export function useChapters(subjectId?: string) {
   // Delete a chapter
   const deleteChapter = useCallback(async (chapterId: string): Promise<void> => {
     try {
-      const db = await getDb();
+      // First, get all materials in this chapter and delete them
+      const chapterMaterials = await materialsStore.getMaterialsByChapter(chapterId);
       
-      // Check if chapter exists
-      const chapter = await db.get(StoreNames.CHAPTERS, chapterId);
-      if (!chapter) {
-        throw new Error(`Chapter not found: ${chapterId}`);
+      // Delete all materials in the chapter
+      for (const material of chapterMaterials) {
+        await materialsStore.deleteMaterial(material.id);
       }
       
       // Delete chapter
-      await db.delete(StoreNames.CHAPTERS, chapterId);
+      await chaptersStore.deleteChapter(chapterId);
       
       // Remove from local state
       setChapters(prevChapters => prevChapters.filter(c => c.id !== chapterId));
-      
-      // Note: We should also delete related materials in a transaction
-      // That will be handled in a more comprehensive hook or service
     } catch (err) {
       console.error('Error deleting chapter:', err);
       throw err instanceof Error ? err : new Error('Failed to delete chapter');
@@ -146,8 +114,7 @@ export function useChapters(subjectId?: string) {
   // Get a chapter by ID
   const getChapter = useCallback(async (chapterId: string): Promise<Chapter | undefined> => {
     try {
-      const db = await getDb();
-      return await db.get(StoreNames.CHAPTERS, chapterId);
+      return await chaptersStore.getChapterById(chapterId);
     } catch (err) {
       console.error('Error getting chapter:', err);
       throw err instanceof Error ? err : new Error('Failed to get chapter');
@@ -157,23 +124,8 @@ export function useChapters(subjectId?: string) {
   // Move a chapter to a different subject
   const moveChapter = useCallback(async (chapterId: string, newSubjectId: string): Promise<Chapter> => {
     try {
-      const db = await getDb();
-      
-      // Get the current chapter
-      const chapter = await db.get(StoreNames.CHAPTERS, chapterId);
-      if (!chapter) {
-        throw new Error(`Chapter not found: ${chapterId}`);
-      }
-      
-      // Update the chapter with new subject ID
-      const updatedChapter: Chapter = {
-        ...chapter,
-        subjectId: newSubjectId,
-        lastModified: Date.now(),
-        syncStatus: SyncStatus.PENDING // Mark as needing sync
-      };
-      
-      await db.put(StoreNames.CHAPTERS, updatedChapter);
+      // Move the chapter
+      const updatedChapter = await chaptersStore.moveChapter(chapterId, newSubjectId);
       
       // Update local state - remove from our list if it's moved to a different subject
       if (subjectId && subjectId !== newSubjectId) {
@@ -192,6 +144,41 @@ export function useChapters(subjectId?: string) {
     }
   }, [subjectId]);
 
+  // Reorder chapters within a subject
+  const reorderChapters = useCallback(async (newOrdering: string[]): Promise<void> => {
+    try {
+      if (!subjectId) {
+        throw new Error('Subject ID is required to reorder chapters');
+      }
+      
+      // Update the chapter ordering
+      const updatedChapters = await chaptersStore.reorderChapters(subjectId, newOrdering);
+      
+      // Update local state with the new ordering
+      setChapters(updatedChapters);
+    } catch (err) {
+      console.error('Error reordering chapters:', err);
+      throw err instanceof Error ? err : new Error('Failed to reorder chapters');
+    }
+  }, [subjectId]);
+
+  // Calculate progress for a chapter
+  const getChapterProgress = useCallback(async (chapterId: string): Promise<number> => {
+    try {
+      const materials = await materialsStore.getMaterialsByChapter(chapterId);
+      
+      if (materials.length === 0) {
+        return 0;
+      }
+      
+      const totalProgress = materials.reduce((sum, material) => sum + (material.progress || 0), 0);
+      return totalProgress / materials.length;
+    } catch (err) {
+      console.error('Error calculating chapter progress:', err);
+      return 0;
+    }
+  }, []);
+
   return {
     chapters,
     loading,
@@ -201,6 +188,8 @@ export function useChapters(subjectId?: string) {
     updateChapter,
     deleteChapter,
     getChapter,
-    moveChapter
+    moveChapter,
+    reorderChapters,
+    getChapterProgress
   };
 }

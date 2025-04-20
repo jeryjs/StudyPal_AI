@@ -21,7 +21,7 @@ import {
     HelpOutline as HelpOutlineIcon,
 } from '@mui/icons-material';
 
-import settingsStore from '@store/settings';
+import settingsStore from '@store/settingsStore';
 
 const GEMINI_API_KEY_PATTERN = /^AIza[A-Za-z0-9_\-]{35,}$/;
 

@@ -47,7 +47,7 @@ export function getDb(): Promise<IDBPDatabase<StudyPalDB>> {
 	if (!dbPromise) {
 		dbPromise = openDB<StudyPalDB>(DB_NAME, DB_VERSION, {
 			upgrade(db, oldVersion, newVersion) {
-				console.log(`Upgrading database from version ${oldVersion} to ${newVersion}`);				// Settings store
+				console.log(`Upgrading database from version ${oldVersion} to ${newVersion}`);
 				if (!db.objectStoreNames.contains(StoreNames.SETTINGS)) {
 					db.createObjectStore(StoreNames.SETTINGS);
 					console.log(`Created object store: ${StoreNames.SETTINGS}`);

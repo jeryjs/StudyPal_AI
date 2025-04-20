@@ -165,7 +165,7 @@ const LearnPage: React.FC = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 } }}>
+    <Box sx={{p: { xs: 1, md: 4 }}}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <Box sx={{ position: 'relative', mr: 2, width: 40, height: 40 }}>
@@ -228,13 +228,13 @@ const LearnPage: React.FC = () => {
             Focus Hive
           </Typography>
         </Box>
-        <Button
+        {/* <Button
           variant="contained"
           startIcon={<AutoAwesomeIcon />}
           sx={glowButton}
         >
           Create Study Plan
-        </Button>
+        </Button> */}
       </Box>
 
       {/* Study Progress Section */}

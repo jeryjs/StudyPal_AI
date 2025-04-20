@@ -71,7 +71,7 @@ const HomePage: React.FC = () => {
 
 
   return (
-    <Box sx={{ m: { xs: 2, md: 4 }, display: 'flex' }}>
+    <Box sx={{ m: { xs: 1, md: 4 } }}>
       {/* Main Content Area */}
       <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -82,7 +82,7 @@ const HomePage: React.FC = () => {
             variant="contained"
             color="primary"
             startIcon={<AddIcon />}
-            sx={pillButton}
+            sx={{...pillButton, display: {xs: 'none', md: 'inherit'}}}
             onClick={() => console.log('Creating New Study Item...')} // Placeholder for create new action
           >
             Add New Task
@@ -245,7 +245,7 @@ const HomePage: React.FC = () => {
           width: 340,
           ml: { md: 3 },
           flexShrink: 0,
-          display: { xs: 'none', lg: 'block' },
+          display: { xs: 'none', xl: 'block' },
         }}
       >
         <CalendarSidebar />

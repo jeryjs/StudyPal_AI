@@ -1,7 +1,7 @@
 import React, { createContext, useState, useMemo, useContext, ReactNode, useEffect } from 'react';
 import { createTheme, ThemeProvider as MuiThemeProvider, ThemeOptions, Theme, alpha } from '@mui/material/styles';
 import { Box, PaletteMode } from '@mui/material';
-import settingsStore from '@store/settings';
+import settingsStore from '@store/settingsStore';
 
 // --- Base Theme Options ---
 const baseThemeOptions: ThemeOptions = {
@@ -57,15 +57,15 @@ const baseThemeOptions: ThemeOptions = {
         },
         MuiPaper: {
             defaultProps: {
-                elevation: 0,
+                elevation: 4,
             },
             styleOverrides: {
                 root: ({ theme }) => ({
                     backgroundImage: 'none',
                     backgroundColor: alpha(theme.palette.background.paper, 0.7),
-                    backdropFilter: 'blur(20px)',
-                    WebkitBackdropFilter: 'blur(20px)', // For Safari
-                    borderRadius: theme.shape.borderRadius,
+                    backdropFilter: 'blur(10px)',
+                    WebkitBackdropFilter: 'blur(10px)', // For Safari
+                    borderRadius: theme.shape.borderRadius * 12.5,
                     border: `1px solid ${alpha(theme.palette.divider, 0.2)}`, // Subtle border
                     boxShadow: `0px 4px 12px ${alpha(theme.palette.divider, 0.1)}`, // Subtle shadow
                 }),
@@ -78,8 +78,8 @@ const baseThemeOptions: ThemeOptions = {
             styleOverrides: {
                 root: ({ theme }) => ({
                     backgroundColor: alpha(theme.palette.background.paper, 0.7),
-                    backdropFilter: 'blur(20px)',
-                    WebkitBackdropFilter: 'blur(20px)',
+                    backdropFilter: 'blur(10px)',
+                    WebkitBackdropFilter: 'blur(10px)',
                     border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
                     borderRadius: theme.shape.borderRadius,
                     backgroundImage: 'none',
@@ -92,8 +92,16 @@ const baseThemeOptions: ThemeOptions = {
                 root: ({ theme }) => ({
                     borderRadius: 12,
                     padding: theme.spacing(1.25, 3),
-                    boxShadow: `0px 2px 6px ${alpha(theme.palette.divider, 0.1)}`, // Subtle shadow
-                    // fontSize: '1.1rem',
+                    boxShadow: `0 6px 15px -5px ${alpha(theme.palette.primary.main, 0.3)}`,
+                    transition: 'background-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease',
+                    '&:hover': {
+                        boxShadow: `0 8px 20px -6px ${alpha(theme.palette.primary.main, 0.5)}`,
+                        transform: 'translateY(-2px)',
+                    },
+                    [theme.breakpoints.down('sm')]: {
+                        fontSize: '0.9rem',
+                        padding: theme.spacing(1, 2),
+                    },
                 }),
                 containedPrimary: ({ theme }) => ({
                     backgroundColor: theme.palette.primary.main,
@@ -106,7 +114,6 @@ const baseThemeOptions: ThemeOptions = {
                 outlinedPrimary: ({ theme }) => ({
                     borderColor: alpha(theme.palette.primary.main, 0.5),
                     color: theme.palette.primary.main,
-                    // fontSize: '1.1rem',
                     '&:hover': {
                         background: alpha(theme.palette.primary.main, 0.08),
                         borderColor: theme.palette.primary.main,
@@ -114,9 +121,28 @@ const baseThemeOptions: ThemeOptions = {
                 }),
                 textPrimary: ({ theme }) => ({
                     color: theme.palette.primary.main,
-                    // fontSize: '1.1rem',
                     '&:hover': {
                         background: alpha(theme.palette.primary.main, 0.08),
+                    },
+                }),
+            }
+        },
+        MuiToggleButton: {
+            styleOverrides: {
+                root: ({ theme }) => ({
+                    padding: theme.spacing(1, 1.5),
+                    transition: 'background-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease',
+                    border: 'none',
+                    '&:hover': {
+                        boxShadow: `0 8px 20px -6px ${alpha(theme.palette.primary.main, 0.5)}`,
+                        transform: 'translateY(-2px)',
+                    },
+                    '&.Mui-selected': {
+                        backgroundColor: alpha(theme.palette.primary.main, 0.15),
+                        color: theme.palette.primary.main,
+                        '&:hover': {
+                            backgroundColor: alpha(theme.palette.primary.main, 0.25),
+                        }
                     },
                 }),
             }
@@ -224,6 +250,20 @@ const baseThemeOptions: ThemeOptions = {
                 }),
             },
         },
+        MuiDialogTitle: {
+            styleOverrides: {
+                root: ({ theme }) => ({
+                    padding: theme.spacing(2, 4, 1),
+                    color: theme.palette.text.primary,
+                    fontWeight: 600,
+                    fontSize: '1.5rem',
+                    [theme.breakpoints.down('sm')]: {
+                        fontSize: '1.25rem',
+                        padding: theme.spacing(2, 2, 1),
+                    },
+                }),
+            },
+        },
         MuiDialogContent: {
             styleOverrides: {
                 root: ({ theme }) => ({
@@ -241,7 +281,8 @@ const baseThemeOptions: ThemeOptions = {
         MuiDialogActions: {
             styleOverrides: {
                 root: ({ theme }) => ({
-                    padding: theme.spacing(1, 2),
+                    padding: theme.spacing(2, 4, 3),
+                    justifyContent: 'space-between',
                     backgroundColor: alpha(theme.palette.background.default, 0.5),
                     [theme.breakpoints.down('sm')]: {
                         '& .MuiButton-root': {

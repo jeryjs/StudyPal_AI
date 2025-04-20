@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import { getDb } from '@db';
-import { Material, MaterialType, StoreNames, SyncStatus } from '@type/db.types';
+import { Material, MaterialType } from '@type/db.types';
+import { materialsStore } from '@store/materialsStore';
 
 /**
  * Hook for managing materials in the database
@@ -15,21 +14,16 @@ export function useMaterials(chapterId?: string) {
   const fetchMaterials = useCallback(async (targetChapterId?: string) => {
     setLoading(true);
     try {
-      const db = await getDb();
       const chapterToQuery = targetChapterId || chapterId;
       
       let materialsList: Material[];
       
       if (chapterToQuery) {
-        // Get materials for specific chapter using the index
-        materialsList = await db.getAllFromIndex(
-          StoreNames.MATERIALS, 
-          'by-chapter', 
-          chapterToQuery
-        );
+        // Get materials for specific chapter
+        materialsList = await materialsStore.getMaterialsByChapter(chapterToQuery);
       } else {
         // Get all materials if no chapter ID provided
-        materialsList = await db.getAll(StoreNames.MATERIALS);
+        materialsList = await materialsStore.getAllMaterials();
       }
       
       setMaterials(materialsList);
@@ -53,33 +47,25 @@ export function useMaterials(chapterId?: string) {
     type: MaterialType, 
     content?: string | Blob,
     contentUrl?: string,
-    targetChapterId?: string
+    targetChapterId?: string,
+    progress: number = 0
   ): Promise<Material> => {
     try {
-      const timestamp = Date.now();
       const chapterToUse = targetChapterId || chapterId;
       
       if (!chapterToUse) {
         throw new Error('Chapter ID is required to create a material');
       }
       
-      // Use UUID for material IDs as requested
-      const id = uuidv4();
-      
-      const newMaterial: Material = {
-        id,
-        name,
-        chapterId: chapterToUse,
-        type,
-        content,
+      // Create the material
+      const newMaterial = await materialsStore.createMaterial(
+        name, 
+        type, 
+        chapterToUse, 
+        content, 
         contentUrl,
-        createdAt: timestamp,
-        lastModified: timestamp,
-        syncStatus: SyncStatus.PENDING // Mark as needing sync
-      };
-      
-      const db = await getDb();
-      await db.put(StoreNames.MATERIALS, newMaterial);
+        progress
+      );
       
       // Update local state if this belongs to our current chapter
       if (chapterToUse === chapterId) {
@@ -94,25 +80,10 @@ export function useMaterials(chapterId?: string) {
   }, [chapterId]);
 
   // Update an existing material
-  const updateMaterial = useCallback(async (updatedMaterial: Material): Promise<Material> => {
+  const updateMaterial = useCallback(async (updatedMaterial: Partial<Material> & { id: string }): Promise<Material> => {
     try {
-      const db = await getDb();
-      
-      // Get the current material to merge with updates
-      const existingMaterial = await db.get(StoreNames.MATERIALS, updatedMaterial.id);
-      if (!existingMaterial) {
-        throw new Error(`Material not found: ${updatedMaterial.id}`);
-      }
-      
-      // Update timestamp and sync status
-      const mergedMaterial: Material = {
-        ...existingMaterial,
-        ...updatedMaterial,
-        lastModified: Date.now(),
-        syncStatus: SyncStatus.PENDING // Mark as needing sync
-      };
-      
-      await db.put(StoreNames.MATERIALS, mergedMaterial);
+      // Update the material
+      const mergedMaterial = await materialsStore.updateMaterial(updatedMaterial);
       
       // Update local state if this belongs to our current chapter
       if (mergedMaterial.chapterId === chapterId) {
@@ -131,16 +102,8 @@ export function useMaterials(chapterId?: string) {
   // Delete a material
   const deleteMaterial = useCallback(async (materialId: string): Promise<void> => {
     try {
-      const db = await getDb();
-      
-      // Check if material exists
-      const material = await db.get(StoreNames.MATERIALS, materialId);
-      if (!material) {
-        throw new Error(`Material not found: ${materialId}`);
-      }
-      
-      // Delete material
-      await db.delete(StoreNames.MATERIALS, materialId);
+      // Delete the material
+      await materialsStore.deleteMaterial(materialId);
       
       // Remove from local state
       setMaterials(prevMaterials => prevMaterials.filter(m => m.id !== materialId));
@@ -153,8 +116,7 @@ export function useMaterials(chapterId?: string) {
   // Get a material by ID
   const getMaterial = useCallback(async (materialId: string): Promise<Material | undefined> => {
     try {
-      const db = await getDb();
-      return await db.get(StoreNames.MATERIALS, materialId);
+      return await materialsStore.getMaterialById(materialId);
     } catch (err) {
       console.error('Error getting material:', err);
       throw err instanceof Error ? err : new Error('Failed to get material');
@@ -164,23 +126,8 @@ export function useMaterials(chapterId?: string) {
   // Move a material to a different chapter
   const moveMaterial = useCallback(async (materialId: string, newChapterId: string): Promise<Material> => {
     try {
-      const db = await getDb();
-      
-      // Get the current material
-      const material = await db.get(StoreNames.MATERIALS, materialId);
-      if (!material) {
-        throw new Error(`Material not found: ${materialId}`);
-      }
-      
-      // Update the material with new chapter ID
-      const updatedMaterial: Material = {
-        ...material,
-        chapterId: newChapterId,
-        lastModified: Date.now(),
-        syncStatus: SyncStatus.PENDING // Mark as needing sync
-      };
-      
-      await db.put(StoreNames.MATERIALS, updatedMaterial);
+      // Move the material
+      const updatedMaterial = await materialsStore.moveMaterial(materialId, newChapterId);
       
       // Update local state - remove from our list if it's moved to a different chapter
       if (chapterId && chapterId !== newChapterId) {
@@ -202,15 +149,40 @@ export function useMaterials(chapterId?: string) {
   // Get materials with pending sync status
   const getPendingMaterials = useCallback(async (): Promise<Material[]> => {
     try {
-      const db = await getDb();
-      return await db.getAllFromIndex(
-        StoreNames.MATERIALS, 
-        'by-syncStatus', 
-        SyncStatus.PENDING
-      );
+      return await materialsStore.getPendingMaterials();
     } catch (err) {
       console.error('Error getting pending materials:', err);
       throw err instanceof Error ? err : new Error('Failed to get pending materials');
+    }
+  }, []);
+
+  // Update material progress
+  const updateProgress = useCallback(async (materialId: string, progress: number): Promise<Material> => {
+    try {
+      // Update the material progress
+      const updatedMaterial = await materialsStore.updateProgress(materialId, progress);
+      
+      // Update local state if this belongs to our current chapter
+      if (updatedMaterial.chapterId === chapterId) {
+        setMaterials(prevMaterials => 
+          prevMaterials.map(m => m.id === updatedMaterial.id ? updatedMaterial : m)
+        );
+      }
+      
+      return updatedMaterial;
+    } catch (err) {
+      console.error('Error updating material progress:', err);
+      throw err instanceof Error ? err : new Error('Failed to update material progress');
+    }
+  }, [chapterId]);
+
+  // Get materials by type
+  const getMaterialsByType = useCallback(async (type: MaterialType): Promise<Material[]> => {
+    try {
+      return await materialsStore.getMaterialsByType(type);
+    } catch (err) {
+      console.error('Error getting materials by type:', err);
+      throw err instanceof Error ? err : new Error('Failed to get materials by type');
     }
   }, []);
 
@@ -224,6 +196,8 @@ export function useMaterials(chapterId?: string) {
     deleteMaterial,
     getMaterial,
     moveMaterial,
-    getPendingMaterials
+    getPendingMaterials,
+    updateProgress,
+    getMaterialsByType
   };
 }

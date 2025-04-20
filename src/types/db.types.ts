@@ -75,6 +75,7 @@ export interface Material extends SyncableItem {
 	content?: string | Blob; // Content or data
 	contentUrl?: string;     // URL for external resources
 	driveLastModified?: number; // Last modification time from Drive
+	progress?: number;      // material completion progress (0-100%)
 }
 
 /**

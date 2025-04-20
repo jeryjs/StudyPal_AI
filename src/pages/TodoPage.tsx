@@ -232,7 +232,7 @@ const TodoPage: React.FC = () => {
     }, [tasks, sortBy /* Add other filter states here */]);
 
     return (
-        <Box sx={{ m: { xs: 2, md: 4 } }}>
+        <Box sx={{ m: { xs: 1, md: 4 } }}>
             {/* Header */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
                 <Typography variant="h4" sx={{ fontWeight: 700 }}>
@@ -280,7 +280,7 @@ const TodoPage: React.FC = () => {
                             <ListItemText>Filter by Subject</ListItemText>
                         </MenuItem>
                     </Menu>
-                    <Button
+                    {/* <Button
                         variant="contained"
                         color="primary"
                         startIcon={<AddIcon />}
@@ -288,7 +288,7 @@ const TodoPage: React.FC = () => {
                         onClick={handleAddTask} // Updated onClick
                     >
                         Add New Task
-                    </Button>
+                    </Button> */}
                 </Box>
             </Box>
 

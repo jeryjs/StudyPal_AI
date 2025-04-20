@@ -9,7 +9,7 @@ import SettingsSection from '@components/settings/SettingsSection'; // Import th
 // --- Settings Page Component ---
 const SettingsPage: React.FC = () => {
   return (
-    <Box sx={{ p: { xs: 2, md: 4 } }}>
+    <Box sx={{ m: { xs: 1, md: 4 } }}>
       <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 700 }}>
         Settings
       </Typography>

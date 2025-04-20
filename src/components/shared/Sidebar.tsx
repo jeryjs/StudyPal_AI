@@ -132,6 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({ variant, open, onToggle, width, colla
               <ListItemButton
                 component={Link}
                 to={item.path}
+                onClick={() => { if (variant === 'temporary') onToggle(); }} // Close drawer on item click for temporary variant
                 selected={location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path))} // Better path matching
                 sx={{
                   minHeight: 64, // Increased height
@@ -181,6 +182,7 @@ const Sidebar: React.FC<SidebarProps> = ({ variant, open, onToggle, width, colla
               <ListItemButton
                 component={Link}
                 to={item.path}
+                onClick={() => { if (variant === 'temporary') onToggle(); }} // Close drawer on item click for temporary variant
                 selected={location.pathname === item.path}
                 sx={{
                   minHeight: 64, // Increased height

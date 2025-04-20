@@ -48,7 +48,8 @@ export function useMaterials(chapterId?: string) {
     content?: string | Blob,
     contentUrl?: string,
     targetChapterId?: string,
-    progress: number = 0
+    progress: number = 0,
+    size?: number // Add size parameter
   ): Promise<Material> => {
     try {
       const chapterToUse = targetChapterId || chapterId;
@@ -64,7 +65,8 @@ export function useMaterials(chapterId?: string) {
         chapterToUse, 
         content, 
         contentUrl,
-        progress
+        progress,
+        size // Pass size to the store method
       );
       
       // Update local state if this belongs to our current chapter

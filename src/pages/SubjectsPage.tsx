@@ -411,7 +411,7 @@ export default function SubjectsPage() {
         getSubjectStats
     } = useSubjects();
 
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>(localStorage.getItem('subjectsViewMode') as 'grid' | 'list' || 'grid');
     const [selectedCategory, setSelectedCategory] = useState<string>('All');
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
@@ -460,6 +460,7 @@ export default function SubjectsPage() {
     ) => {
         if (newViewMode !== null) {
             setViewMode(newViewMode);
+            localStorage.setItem('subjectsViewMode', newViewMode);
         }
     };
 
@@ -509,7 +510,7 @@ export default function SubjectsPage() {
 
 
     const handleSubjectClick = (subject: Subject) => {
-        navigate(`/subjects/${slugify(subject.name)}/${subject.id}`); // Navigate to subject detail page
+        navigate(`/subjects/${subject.id}`); // Navigate to subject detail page
     };
 
     const handleSnackbarClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
@@ -590,9 +591,9 @@ export default function SubjectsPage() {
                                         {statsLoading[subject.id] ? 'Loading stats...' :
                                          subjectStats[subject.id]
                                             // Include size in secondary text
-                                            ? `${subjectStats[subject.id].chaptersCount} Ch • ${subjectStats[subject.id].materialsCount} Mat • ${formatBytes(subjectStats[subject.id].totalSize)} • ${Math.round(subjectStats[subject.id].progress)}%`
+                                            ? `${subjectStats[subject.id].chaptersCount} Ch • ${subjectStats[subject.id].materialsCount} Mat • ${Math.round(subjectStats[subject.id].progress)}% complete`
                                             : 'No stats available'}
-                                        {' • Upd: ' + formatDistanceToNow(subject.lastModified, { addSuffix: true })}
+                                        {/* {' • Upd: ' + formatDistanceToNow(subject.lastModified, { addSuffix: true })} */}
                                     </Typography>
                                 }
                                 // Add sx to limit primary text width if needed
@@ -641,9 +642,9 @@ export default function SubjectsPage() {
 
 
     return (
-        <Box sx={{ p: isMobile ? 2 : 3, flexGrow: 1 }}>
+        <Box sx={{ m: {xs: 1, md: 4}}}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-                <Typography variant={isMobile ? "h5" : "h4"} fontWeight={700}>
+                <Typography variant="h4" fontWeight={700}>
                     My Subjects
                 </Typography>
                 <ToggleButtonGroup

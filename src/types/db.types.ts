@@ -27,6 +27,7 @@ export enum SyncStatus {
  * Material types supported by the application
  */
 export enum MaterialType {
+	FILE = "file",
 	MARKDOWN = "markdown",
 	PDF = "pdf",
 	TEXT = "text",

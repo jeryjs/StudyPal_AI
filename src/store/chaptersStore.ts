@@ -57,7 +57,7 @@ class ChaptersStore extends DBStore<Chapter> {
       syncStatus: SyncStatus.PENDING
     };
     
-    await this.set(id, newChapter);
+    await this.put(newChapter); // Use put(value) instead of set(key, value)
     return newChapter;
   }
 
@@ -79,7 +79,7 @@ class ChaptersStore extends DBStore<Chapter> {
       syncStatus: SyncStatus.PENDING
     };
     
-    await this.set(updatedChapter.id, updatedChapter);
+    await this.put(updatedChapter); // Use put(value) instead of set(key, value)
     return updatedChapter;
   }
 

@@ -45,7 +45,8 @@ class MaterialsStore extends DBStore<Material> {
     chapterId: string,
     content?: string | Blob,
     contentUrl?: string,
-    progress: number = 0
+    progress: number = 0,
+    size?: number // Add size parameter
   ): Promise<Material> {
     const timestamp = Date.now();
     const id = uuidv4(); // Using UUID for material IDs
@@ -58,12 +59,13 @@ class MaterialsStore extends DBStore<Material> {
       content,
       contentUrl,
       progress,
+      size, // Include size
       createdAt: timestamp,
       lastModified: timestamp,
       syncStatus: SyncStatus.PENDING
     };
     
-    await this.set(id, newMaterial);
+    await this.put(newMaterial);
     return newMaterial;
   }
 
@@ -82,10 +84,13 @@ class MaterialsStore extends DBStore<Material> {
       ...existingMaterial,
       ...material,
       lastModified: Date.now(),
-      syncStatus: SyncStatus.PENDING
+      // Ensure syncStatus is updated correctly, only set to PENDING if relevant fields changed
+      syncStatus: existingMaterial.syncStatus === SyncStatus.SYNCED && (material.name !== existingMaterial.name || material.content !== existingMaterial.content) 
+                  ? SyncStatus.PENDING 
+                  : existingMaterial.syncStatus
     };
     
-    await this.set(updatedMaterial.id, updatedMaterial);
+    await this.put(updatedMaterial); // Use put(value) instead of set(key, value)
     return updatedMaterial;
   }
 

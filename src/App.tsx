@@ -13,6 +13,7 @@ import SettingsPage from '@pages/SettingsPage';
 import CopilotPage from '@pages/CopilotPage';
 import LearnPage from '@pages/LearnPage';
 import SubjectsPage from '@pages/SubjectsPage';
+import ChaptersPage from '@pages/ChaptersPage';
 import TodoPage from '@pages/TodoPage';
 import QuizPage from '@pages/QuizPage';
 
@@ -31,9 +32,6 @@ function App() {
       localStorage.setItem('sidebarOpen', (!isSidebarOpen).toString());
     }
   };
-
-  console.log(`Sidebar Open: ${isSidebarOpen}`); // Debugging log
-  
 
   const sidebarWidth = 260; // Slightly wider sidebar
   const collapsedSidebarWidth = 80; // Wider collapsed sidebar
@@ -79,12 +77,12 @@ function App() {
           component="main"
           sx={{
             flexGrow: 1,
-            overflowY: 'auto', // Enable scrolling for content
-            position: 'relative', // Needed for potential absolute positioned elements inside
+            overflowY: 'auto',
+            position: 'relative',
             // Add padding top to account for AppBar height on mobile
             pt: isMobile && !isCopilotRoute ? `calc(${theme.mixins.toolbar.minHeight || '56'}px + ${theme.spacing(1)})` : theme.spacing(2), // Add some base padding top
-            pb: theme.spacing(3), // Padding bottom
-            px: theme.spacing(1), // Minimal horizontal padding, pages handle their own main padding
+            pb: theme.spacing(3),
+            px: theme.spacing(1),
             // Adjust left margin based on sidebar state and screen size
             // ml: isCopilotRoute || isMobile ? 0 : (isSidebarOpen ? `${sidebarWidth}px` : `${collapsedSidebarWidth}px`),
             transition: theme.transitions.create('margin', {
@@ -107,6 +105,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/subjects" element={<SubjectsPage />} />
+            <Route path="/subjects/:subjectId" element={<ChaptersPage />} />
             {/* Remove duplicate subjects route */}
             {/* <Route path="/subjects" element={<Typography sx={{ p: 3 }}>Subjects Page (Placeholder)</Typography>} /> */}
             <Route path="/learn" element={<LearnPage />} />

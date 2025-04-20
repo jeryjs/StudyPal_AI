@@ -294,13 +294,12 @@ export const importDbFromJson = async (jsonString: string): Promise<void> => {
 						}
 					}
 				} else {
-					// Handle other stores (assuming they have an 'id' property as key)
+					// Handle other stores
 					for (const item of itemsToImport) {
-						// Use put(value, key) for other stores, assuming item.id is the key
-						if (item && typeof item.id === 'string') {
-							await store.put(item, item.id);
+						if (item) {
+							await store.put(item);
 						} else {
-							console.warn(`Skipping invalid item in ${storeName} during import (missing or invalid id):`, item);
+							console.warn(`Skipping invalid item in ${storeName} during import:`, item);
 						}
 					}
 				}

@@ -27,9 +27,10 @@ import {
     Typography
 } from '@mui/material';
 import React, { useEffect, useRef, useState } from 'react';
-import { SyncStatusState, useGoogleDriveSync } from '@hooks/useGoogleDriveSync'; // Import SyncStatusState
+// Import the context hook
+import { SyncStatusState, useSyncContext } from '@contexts/SyncContext'; 
 // Import DB functions for manual import/export
-import { exportDbToJson, importDbFromJson } from '../../db';
+import { exportDbToJson, importDbFromJson } from '@db';
 
 // Helper function to format timestamp
 const formatTimestamp = (timestamp: number | null): string => {
@@ -48,44 +49,29 @@ const syncStatusMap: { [key in SyncStatusState]: { text: string; color: string; 
     error: { text: 'Sync Error', color: 'error', icon: <ErrorIcon fontSize="small" /> },
 };
 
-
 const GoogleDriveSync: React.FC = () => {
+    // Use the context hook for all sync-related state and operations
     const {
         isGapiLoaded,
-        authState,
+        isAuthenticated,
         signIn,
         signOut,
-        syncStatus, // Use this for status display
+        syncStatus, 
         error,
-        conflictDetails, // Use this to show conflict info
-        lastSuccessfulSync, // Display this
-        isAuthenticated, // Use the boolean directly
-        resolveConflict, // Function for conflict resolution
-        // backupDatabaseToDrive, // Keep if manual backup trigger is desired
-        // restoreDatabaseFromDrive, // Keep if manual restore trigger is desired
-    } = useGoogleDriveSync();
+        lastSuccessfulSync,
+        isInitialized
+    } = useSyncContext();
 
+    // Local UI state for the settings component
     const [localError, setLocalError] = useState<string | null>(null);
     const [showSuccessMessage, setShowSuccessMessage] = useState<string | null>(null);
-    const [isConflictDialogOpen, setIsConflictDialogOpen] = useState(false);
-    const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false); // Dialog state for import
-    const [fileToImport, setFileToImport] = useState<File | null>(null); // Store file for import confirmation
-
-    const fileInputRef = useRef<HTMLInputElement>(null); // Ref for hidden file input
-
+    const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
+    const [fileToImport, setFileToImport] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Combined error from context and local
     const displayError = error?.message || localError;
     const currentSyncStatus = syncStatusMap[syncStatus] || syncStatusMap.idle;
-
-    // --- Effects ---
-
-    // Effect to open conflict dialog automatically
-    useEffect(() => {
-        if (syncStatus === 'conflict') {
-            setIsConflictDialogOpen(true);
-        } else {
-            setIsConflictDialogOpen(false); // Close if status changes away from conflict
-        }
-    }, [syncStatus]);
 
     // Effect to auto-hide success message
     useEffect(() => {
@@ -102,37 +88,28 @@ const GoogleDriveSync: React.FC = () => {
 
     // --- Event Handlers ---
 
-    // Clear errors/messages
+    // Clear local errors/messages
     const clearMessages = () => {
         setLocalError(null);
         setShowSuccessMessage(null);
-        // Hook error state is managed internally by the hook now
     };
 
     const handleSignIn = async () => {
         clearMessages();
         try {
             await signIn();
-        } catch (err: any) { /* Error handled by hook */ }
+        } catch (err) {
+            console.error("Sign in UI catch:", err);
+            // Errors are handled by context, this is just for UI feedback
+        }
     };
 
     const handleSignOut = async () => {
         clearMessages();
         try {
             await signOut();
-        } catch (err) { /* Error handled by hook */ }
-    };
-
-    // Conflict Resolution Handlers
-    const handleResolveConflict = async (resolution: 'local' | 'drive') => {
-        setIsConflictDialogOpen(false);
-        clearMessages();
-        try {
-            await resolveConflict(resolution);
-            setShowSuccessMessage(`Conflict resolved using ${resolution} data. Syncing...`);
         } catch (err) {
-            // Error should be set by the hook
-            console.error("Conflict resolution UI catch:", err);
+            console.error("Sign out UI catch:", err);
         }
     };
 
@@ -209,7 +186,6 @@ const GoogleDriveSync: React.FC = () => {
         setFileToImport(null);
     };
 
-
     return (
         <Box sx={{
             display: 'flex',
@@ -225,7 +201,8 @@ const GoogleDriveSync: React.FC = () => {
                 gap: 1
             }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {!isGapiLoaded ? (
+                    {/* Use isInitialized from context to show loading state */}
+                    {!isInitialized ? ( 
                         <CircularProgress size={20} />
                     ) : isAuthenticated ? (
                         <CloudDoneIcon color="success" />
@@ -233,7 +210,7 @@ const GoogleDriveSync: React.FC = () => {
                         <CloudOffIcon color="disabled" />
                     )}
                     <Typography variant="body1">
-                        {!isGapiLoaded
+                        {!isInitialized
                             ? 'Initializing Sync...'
                             : isAuthenticated
                                 ? 'Connected to Google Drive'
@@ -242,7 +219,8 @@ const GoogleDriveSync: React.FC = () => {
                 </Box>
 
                 <Box>
-                    {isGapiLoaded ? (
+                    {/* Auth button */}
+                    {isInitialized ? ( 
                         isAuthenticated ? (
                             <Button
                                 variant="outlined"
@@ -270,7 +248,7 @@ const GoogleDriveSync: React.FC = () => {
             </Box>
 
             {/* Sync Status & Actions Section */}
-            {isGapiLoaded && isAuthenticated && (
+            {isInitialized && isAuthenticated && (
                 <Box sx={{
                     p: 2,
                     borderRadius: 1,
@@ -285,7 +263,7 @@ const GoogleDriveSync: React.FC = () => {
                         <Chip
                             icon={currentSyncStatus.icon}
                             label={currentSyncStatus.text}
-                            color={currentSyncStatus.color as any} // Cast needed for MUI Chip color prop
+                            color={currentSyncStatus.color as any}
                             size="small"
                             variant="outlined"
                         />
@@ -303,7 +281,7 @@ const GoogleDriveSync: React.FC = () => {
                             color="secondary"
                             startIcon={<DownloadIcon />}
                             onClick={handleExportData}
-                            disabled={!isAuthenticated || syncStatus === 'syncing_up' || syncStatus === 'syncing_down'}
+                            disabled={syncStatus === 'syncing_up' || syncStatus === 'syncing_down'}
                         >
                             Export Data
                         </Button>
@@ -311,8 +289,8 @@ const GoogleDriveSync: React.FC = () => {
                             variant="outlined"
                             color="secondary"
                             startIcon={<UploadIcon />}
-                            onClick={handleImportClick} // Trigger hidden input
-                            disabled={!isAuthenticated || syncStatus === 'syncing_up' || syncStatus === 'syncing_down'}
+                            onClick={handleImportClick}
+                            disabled={syncStatus === 'syncing_up' || syncStatus === 'syncing_down'}
                         >
                             Import Data
                         </Button>
@@ -344,44 +322,6 @@ const GoogleDriveSync: React.FC = () => {
                 </Alert>
             )}
 
-            {/* Conflict Resolution Dialog */}
-            <Dialog
-                open={isConflictDialogOpen}
-                // onClose={() => setIsConflictDialogOpen(false)} // Prevent closing by clicking outside
-                aria-labelledby="conflict-dialog-title"
-                aria-describedby="conflict-dialog-description"
-            >
-                <DialogTitle id="conflict-dialog-title" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <SyncProblemIcon color="error" /> Sync Conflict Detected
-                </DialogTitle>
-                <DialogContent>
-                    <DialogContentText id="conflict-dialog-description" component="div">
-                        <Typography gutterBottom>
-                            Your local data and the data stored in Google Drive have both changed since the last successful sync.
-                        </Typography>
-                        {conflictDetails && (
-                            <Typography variant="body2" color="text.secondary" gutterBottom>
-                                Drive data last modified: {formatTimestamp(conflictDetails.driveModified)}<br />
-                                Local data last modified: {formatTimestamp(conflictDetails.localModified)} {/* Note: localModified might be Date.now() */}
-                            </Typography>
-                        )}
-                        <Typography>
-                            Please choose which version you want to keep. The other version will be overwritten.
-                        </Typography>
-                    </DialogContentText>
-                </DialogContent>
-                <DialogActions sx={{gap:2, p: 2, flexDirection: 'column' }}>
-                    <Button onClick={() => handleResolveConflict('drive')} fullWidth color="primary" variant="outlined">
-                        Use Google Drive Data
-                        <Typography variant="caption" display="block"> (Overwrites Local)</Typography>
-                    </Button>
-                    <Button onClick={() => handleResolveConflict('local')} fullWidth color="secondary" variant="contained">
-                        Keep Local Data
-                        <Typography variant="caption" display="block"> (Overwrites Drive)</Typography>
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
             {/* Import Confirmation Dialog */}
             <Dialog
                 open={isImportConfirmOpen}
@@ -404,7 +344,6 @@ const GoogleDriveSync: React.FC = () => {
                     </Button>
                 </DialogActions>
             </Dialog>
-
         </Box>
     );
 };

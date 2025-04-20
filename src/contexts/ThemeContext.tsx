@@ -192,6 +192,9 @@ const baseThemeOptions: ThemeOptions = {
                     margin: theme.spacing(2),
                     border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
                     boxShadow: `0px 4px 12px ${alpha(theme.palette.divider, 0.1)}`,
+                    [theme.breakpoints.down('sm')]: {
+                        margin: theme.spacing(1),
+                    },
                 }),
             },
         },
@@ -214,6 +217,13 @@ const baseThemeOptions: ThemeOptions = {
                 root: ({ theme }) => ({
                     padding: theme.spacing(1, 2),
                     backgroundColor: alpha(theme.palette.background.default, 0.5),
+                    [theme.breakpoints.down('sm')]: {
+                        '& .MuiButton-root': {
+                            margin: theme.spacing(0, 1),
+                            fontSize: '0.9rem',
+                        }
+                    },
+                    
                 }),
             },
         },

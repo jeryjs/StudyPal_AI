@@ -33,6 +33,7 @@
       "@hooks/*": ["hooks/*"],
       "@store/*": ["store/*"],
       "@utils/*": ["utils/*"],
+      "@db": ["db.ts"],
     }
   },
   "include": ["src"]

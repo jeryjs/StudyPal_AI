@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { exportDbToJson, getDb, importDbFromJson, StoreNames } from '@db';
+import { Material, MaterialType, SyncStatus } from '@type/db.types';
+import { blobToBase64 } from '@utils/utils';
 import { gapi } from 'gapi-script';
-// Import ArrayBuffer type if needed, though it's built-in
-import { exportDbToJson, importDbFromJson, getDb, StoreNames } from '@db'; 
-import { Material, MaterialType, SyncStatus, Chapter, Subject } from '@type/db.types'; 
+import { useCallback, useEffect, useState } from 'react';
 
 // --- Constants --- 
 const API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
@@ -23,9 +23,9 @@ export type DriveEventCallbacks = {
   onSyncStatusChange: (status: SyncStatus) => void;
   onError: (error: Error | null) => void;
   onConflictDetected: (details: {
-    driveModified: number; 
-    localModified: number; 
-    driveSize?: number; 
+    driveModified: number;
+    localModified: number;
+    driveSize?: number;
   } | null) => void;
   onSyncComplete: (timestamp: number) => void;
 };
@@ -37,14 +37,14 @@ export function useGoogleDriveSync(callbacks: DriveEventCallbacks) {
   // Internal state for API operations only
   const [isGapiLoaded, setIsGapiLoaded] = useState(false);
   const [authState, setAuthState] = useState<AuthState>({ isAuthenticated: false });
-  
-  const { 
-    onSyncStatusChange, 
-    onError, 
-    onConflictDetected, 
-    onSyncComplete 
+
+  const {
+    onSyncStatusChange,
+    onError,
+    onConflictDetected,
+    onSyncComplete
   } = callbacks;
-  
+
   // --- GAPI Initialization --- 
   useEffect(() => {
     const initGapiClient = async () => {
@@ -54,7 +54,7 @@ export function useGoogleDriveSync(callbacks: DriveEventCallbacks) {
         onError(new Error('Google API credentials not configured.'));
         return;
       }
-      
+
       try {
         await new Promise<void>((resolve, reject) => {
           gapi.load('client:auth2', {
@@ -64,21 +64,21 @@ export function useGoogleDriveSync(callbacks: DriveEventCallbacks) {
             ontimeout: reject
           });
         });
-        
+
         await gapi.client.init({
           apiKey: API_KEY,
           clientId: CLIENT_ID,
           discoveryDocs: DISCOVERY_DOCS,
           scope: SCOPES,
         });
-        
+
         setIsGapiLoaded(true);
         console.log('GAPI client initialized.');
 
         const googleAuth = gapi.auth2.getAuthInstance();
         const currentAuthStatus = googleAuth.isSignedIn.get();
         setAuthState({ isAuthenticated: currentAuthStatus });
-        
+
         // Auth state listener only updates local state
         googleAuth.isSignedIn.listen((isSignedIn) => {
           setAuthState({ isAuthenticated: isSignedIn });
@@ -162,23 +162,23 @@ export function useGoogleDriveSync(callbacks: DriveEventCallbacks) {
     if (!isAuthenticated()) {
       throw new Error('Not authenticated with Google');
     }
-    
+
     try {
       const response = await action();
 
       // Check if response exists AND status is a number before comparing
-      if (response && typeof response.status === 'number' && response.status >= 400) { 
-         console.error('Google Drive API Error Response:', response.result);
-         const errorResult = response.result as any; 
-         const errorMsg = errorResult?.error?.message || `Google Drive API request failed with status ${response.status}`;
-         if (response.status === 401) {
-            signOut();
-            throw new Error('Authentication expired or invalid. Please sign in again.');
-         } 
-         throw new Error(errorMsg);
+      if (response && typeof response.status === 'number' && response.status >= 400) {
+        console.error('Google Drive API Error Response:', response.result);
+        const errorResult = response.result as any;
+        const errorMsg = errorResult?.error?.message || `Google Drive API request failed with status ${response.status}`;
+        if (response.status === 401) {
+          signOut();
+          throw new Error('Authentication expired or invalid. Please sign in again.');
+        }
+        throw new Error(errorMsg);
       }
       if (!response) {
-          throw new Error('No response received from Google Drive API.');
+        throw new Error('No response received from Google Drive API.');
       }
       return response;
     } catch (err: any) {
@@ -186,8 +186,8 @@ export function useGoogleDriveSync(callbacks: DriveEventCallbacks) {
       // Check for specific gapi error structures or status codes
       const statusCode = err?.status ?? err?.result?.error?.code;
       if (statusCode === 401 || err?.message?.includes('Unauthorized') || err?.message?.includes('Invalid Credentials')) {
-         signOut();
-         throw new Error('Authentication failed. Please sign in again.');
+        signOut();
+        throw new Error('Authentication failed. Please sign in again.');
       }
       throw err instanceof Error ? err : new Error(err?.message || 'Google Drive API request failed');
     }
@@ -272,15 +272,16 @@ export function useGoogleDriveSync(callbacks: DriveEventCallbacks) {
       const metadata = {
         name: fileName,
         mimeType: mimeType,
-        // Only add parents if creating a new file
-        ...( !existingFileId && { parents: [parentFolderId] } )
+        ...(!existingFileId && { parents: [parentFolderId] }) // Only add parents if creating a new file
       };
+
+      const base64Data = await blobToBase64(fileBlob);
 
       const path = existingFileId
         ? `/upload/drive/v3/files/${existingFileId}`
         : '/upload/drive/v3/files';
       // Use PATCH for update, POST for create
-      const method = existingFileId ? 'PATCH' : 'POST'; 
+      const method = existingFileId ? 'PATCH' : 'POST';
 
       // Use simple upload for content update (PATCH) or create (POST)
       // Metadata is sent as query params or inferred for PATCH
@@ -293,26 +294,23 @@ export function useGoogleDriveSync(callbacks: DriveEventCallbacks) {
       const delimiter = `\r\n--${boundary}\r\n`;
       const close_delim = `\r\n--${boundary}--`;
 
-      const metadataStr = JSON.stringify(metadata);
-
       // Construct the multipart body directly from the Blob
-      const multipartRequestBody = new Blob([
-        delimiter,
-        'Content-Type: application/json; charset=UTF-8\r\n\r\n',
-        metadataStr,
-        delimiter,
-        `Content-Type: ${mimeType}\r\n\r\n`,
-        fileBlob, // Append the actual Blob directly
+      const multipartRequestBody =
+        delimiter +
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+        JSON.stringify(metadata) +
+        delimiter +
+        `Content-Type: ${mimeType}\r\n\r\n` +
+        base64Data +
         close_delim
-      ], { type: `multipart/related; boundary="${boundary}"` });
 
       const response = await driveApiAction(() =>
         gapi.client.request({
           path: path,
           method: method,
-          params: { uploadType: 'multipart', fields: 'id' }, // Use multipart
+          params: { uploadType: 'multipart', fields: 'id' },
           headers: { 'Content-Type': `multipart/related; boundary="${boundary}"` },
-          body: multipartRequestBody // Send the constructed Blob
+          body: multipartRequestBody
         })
       );
 
@@ -331,45 +329,36 @@ export function useGoogleDriveSync(callbacks: DriveEventCallbacks) {
   const getDriveFileContent = useCallback(async (fileId: string): Promise<Blob> => {
     console.log(`getDriveFileContent: Fetching content for file ID: ${fileId}`);
     const response = await driveApiAction(() =>
-        gapi.client.request({
-            path: `/drive/v3/files/${fileId}`,
-            method: 'GET',
-            params: { alt: 'media' },
-        })
+      gapi.client.request({
+        path: `/drive/v3/files/${fileId}`,
+        method: 'GET',
+        params: { alt: 'media' },
+      })
     );
 
-    let bodyData: ArrayBuffer | string | undefined;
-    const responseBody: any = response.body;
+    const contentType = response.headers?.['Content-Type'] || 'application/octet-stream';
+    let contentData = response.body;
 
-    if (typeof responseBody === 'string') {
-        bodyData = responseBody;
-    } else if (responseBody instanceof ArrayBuffer) { // Check for ArrayBuffer
-        bodyData = responseBody;
-    } else if (typeof responseBody === 'object' && responseBody !== null) {
-        // Handle potential JSON error object returned in body for media download errors
-        console.warn("Received object instead of media content:", responseBody);
-        bodyData = JSON.stringify(responseBody);
-    } else {
-        bodyData = '';
+    if (contentType.startsWith('image/') || contentType.startsWith('video/')) {
+      return fetch(contentData).then(res => res.blob());
     }
 
-    const contentType = response.headers?.['content-type'] || 'application/octet-stream';
     console.log(`getDriveFileContent: Successfully fetched content for file ID: ${fileId}, Type: ${contentType}`);
-    return new Blob([bodyData || ''], { type: contentType });
+    return new Blob([contentData], { type: contentType });
   }, [driveApiAction]);
 
   /**
    * List files/folders in Google Drive App Data folder using gapi
    */
   const listDriveItems = useCallback(async (parentDriveId: string = 'appDataFolder'): Promise<gapi.client.drive.File[]> => {
-    const response = await driveApiAction(() => 
+    const response = await driveApiAction(() =>
       gapi.client.drive.files.list({
         spaces: 'appDataFolder',
         q: `'${parentDriveId}' in parents and trashed = false`,
         fields: 'files(id, name, mimeType, modifiedTime, createdTime, parents)',
         orderBy: 'name',
       })
-    ); 
+    );
     return response.result.files || [];
   }, [driveApiAction]);
 
@@ -396,239 +385,311 @@ export function useGoogleDriveSync(callbacks: DriveEventCallbacks) {
 
   /**
    * Uploads materials marked as PENDING to Google Drive.
-   * Handles content stored as ArrayBuffer in IndexedDB.
+   * Separates reading from network/writing to avoid TransactionInactiveError.
    */
   const syncPendingMaterials = useCallback(async () => {
     if (!isAuthenticated()) {
-        console.warn("syncPendingMaterials: Not authenticated.");
-        return;
+      console.warn("syncPendingMaterials: Not authenticated.");
+      // Return counts for backupDatabaseToDrive to assess status
+      return { successCount: 0, errorCount: 0, skippedCount: 0 };
     }
     console.log("syncPendingMaterials: Checking for pending materials...");
     onSyncStatusChange(SyncStatus.SYNCING_UP); // Indicate activity
 
     const db = await getDb();
-    const tx = db.transaction([StoreNames.MATERIALS, StoreNames.CHAPTERS, StoreNames.SUBJECTS], 'readwrite');
-    const materialsStore = tx.objectStore(StoreNames.MATERIALS);
-    const chaptersStore = tx.objectStore(StoreNames.CHAPTERS);
-    const subjectsStore = tx.objectStore(StoreNames.SUBJECTS);
-    const index = materialsStore.index('by-syncStatus'); 
+    let skippedItemsIds: string[] = []; // Track skipped items for making them UP_TO_DATE
+    let pendingItemsData: { material: Material; subjectId: string }[] = [];
+    let readError: Error | null = null;
 
-    let cursor = await index.openCursor(IDBKeyRange.only(SyncStatus.PENDING));
-    let uploadCount = 0;
-    let errorCount = 0;
+    // --- Phase 1: Read pending items data (Readonly Transaction) ---
+    try {
+      console.debug("syncPendingMaterials: Starting Phase 1 - Reading pending items...");
+      const readTx = db.transaction([StoreNames.MATERIALS, StoreNames.CHAPTERS], 'readonly');
+      const materialsStore = readTx.objectStore(StoreNames.MATERIALS);
+      const chaptersStore = readTx.objectStore(StoreNames.CHAPTERS);
+      const index = materialsStore.index('by-syncStatus');
+      let cursor = await index.openCursor(IDBKeyRange.only(SyncStatus.PENDING));
+      let count = 0;
 
-    while (cursor) {
+      while (cursor) {
+        count++;
         const material: Material = cursor.value;
-        console.log(`syncPendingMaterials: Found pending material: ${material.name} (ID: ${material.id})`);
 
-        // Skip TEXT and LINK as their content is in main backup
-        if ([MaterialType.LINK, MaterialType.TEXT].includes(material.type)) {
-          console.log(`syncPendingMaterials: Skipping ${material.type} type: ${material.name}`);
+        // Skip text/link types or items without Blob content
+        if ([MaterialType.LINK, MaterialType.TEXT].includes(material.type) || !(material.content?.data instanceof Blob)) {
+          console.debug(`syncPendingMaterials: [Read Phase] Skipping ${material.id} (type: ${material.type}, content type: ${typeof material.content?.data})`);
+          skippedItemsIds.push(material.id);
           cursor = await cursor.continue();
           continue;
         }
 
-        // Check if content is an ArrayBuffer
-        if (!(material.content instanceof ArrayBuffer)) { 
-            console.warn(`syncPendingMaterials: Pending material ${material.id} content is not an ArrayBuffer. Skipping. Content type: ${typeof material.content}`);
-            errorCount++;
-            cursor = await cursor.continue();
-            continue;
+        // Get parent chapter to find subjectId
+        const chapter = await chaptersStore.get(material.chapterId);
+        if (!chapter) {
+          console.warn(`syncPendingMaterials: [Read Phase] Parent chapter ${material.chapterId} not found for material ${material.id}. Skipping.`);
+          cursor = await cursor.continue();
+          continue;
         }
 
-        try {
-            // 1. Get Parent IDs for path
-            const chapter = await chaptersStore.get(material.chapterId);
-            if (!chapter) throw new Error(`Parent chapter ${material.chapterId} not found.`);
-            const subject = await subjectsStore.get(chapter.subjectId);
-            if (!subject) throw new Error(`Parent subject ${chapter.subjectId} not found.`);
-
-            // 2. Determine Drive folder path
-            const driveFolderPath = [subject.id, chapter.id]; // Use IDs for folder names
-            const parentFolderId = await findOrCreateFolderByPath(driveFolderPath);
-
-            // 3. Create Blob from ArrayBuffer
-            // TODO: Need a reliable way to get the original mimeType. Store it?
-            // For now, use a generic type or infer based on MaterialType enum.
-            let mimeType = 'application/octet-stream'; 
-            // Basic inference (can be expanded)
-            if (material.type === MaterialType.PDF) mimeType = 'application/pdf';
-            else if (material.type === MaterialType.IMAGE) mimeType = 'image/*';
-            else if (material.type === MaterialType.VIDEO) mimeType = 'video/*';
-            else if (material.type === MaterialType.WORD) mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-            
-            const fileBlob = new Blob([material.content], { type: mimeType });
-
-            // 4. Upload Blob
-            const driveId = await uploadFileToFolder(fileBlob, material.id, parentFolderId, mimeType);
-
-            // 5. Update Material in IndexedDB
-            material.driveId = driveId;
-            material.syncStatus = SyncStatus.UP_TO_DATE;
-            material.lastModified = Date.now();
-            // delete material.content; // Remove ArrayBuffer content after successful upload
-
-            await cursor.update(material);
-            uploadCount++;
-            console.log(`syncPendingMaterials: Successfully uploaded ${material.id}, updated status to UP_TO_DATE.`);
-
-        } catch (err) {
-            console.error(`syncPendingMaterials: Failed to upload material ${material.id}:`, err);
-            // Optionally update status to ERROR
-            // material.syncStatus = SyncStatus.ERROR;
-            // await cursor.update(material);
-            errorCount++;
-            // Decide whether to stop or continue on error
-        }
-
+        // Store necessary data for upload
+        pendingItemsData.push({ material, subjectId: chapter.subjectId });
+        console.debug(`syncPendingMaterials: [Read Phase] Added ${material.id} to processing list.`);
         cursor = await cursor.continue();
+      }
+      await readTx.done;
+      console.debug(`syncPendingMaterials: Phase 1 Complete. Found ${pendingItemsData.length} binary items (out of ${count} pending) to upload.`);
+    } catch (err: any) {
+      console.error("syncPendingMaterials: Phase 1 Error - Reading pending items:", err);
+      readError = err instanceof Error ? err : new Error('Failed to read pending items');
     }
 
-    await tx.done;
-    console.log(`syncPendingMaterials: Finished. Uploaded: ${uploadCount}, Errors: ${errorCount}`);
+    // Handle read error before proceeding
+    if (readError) {
+      onError(new Error(`Failed to read pending items from database: ${readError.message}`));
+      onSyncStatusChange(SyncStatus.ERROR);
+      return { successCount: 0, errorCount: pendingItemsData.length, skippedCount: skippedItemsIds.length }; // Assume all read attempts failed if error occurred
+    }
+
+    if (pendingItemsData.length === 0) {
+      console.log("syncPendingMaterials: No binary items require upload.");
+      // Don't change status yet, main backup will set UP_TO_DATE if needed
+      return { successCount: 0, errorCount: 0, skippedCount: 0 };
+    }
+
+    // --- Phase 1.5: Update skipped items to UP_TO_DATE (Outside Transaction) ---
+    console.log(`syncPendingMaterials: Updating skipped items to UP_TO_DATE...`);
+    const skippedTx = db.transaction(StoreNames.MATERIALS, 'readwrite');
+    const skippedStore = skippedTx.objectStore(StoreNames.MATERIALS);
+    for (const id of skippedItemsIds) {
+      const skippedMaterial = await skippedStore.get(id);
+      if (skippedMaterial) {
+        skippedMaterial.syncStatus = SyncStatus.UP_TO_DATE;
+        await skippedStore.put(skippedMaterial);
+      }
+    }
+
+    // --- Phase 2: Process uploads (Outside Transaction) ---
+    console.log("syncPendingMaterials: Starting Phase 2 - Processing uploads...");
+    let uploadCount = 0;
+    let errorCount = 0;
+
+    for (const itemData of pendingItemsData) {
+      const { material, subjectId } = itemData;
+      try {
+        console.log(`syncPendingMaterials: [Upload Phase] Processing ${material.id}`);
+        // 1. Determine Drive folder path
+        const driveFolderPath = [subjectId, material.chapterId]; // Use IDs
+        const parentFolderId = await findOrCreateFolderByPath(driveFolderPath);
+
+        // 2. Create Blob from Blob (content is guaranteed to be Blob here)
+        const mimeType = material.content!.mimeType || 'application/octet-stream'; // Use stored mimeType, assert non-null
+        const fileBlob = new Blob([material.content!.data], { type: mimeType }); // Assert non-null
+
+        // 3. Upload Blob
+        const driveId = await uploadFileToFolder(fileBlob, material.id, parentFolderId, mimeType);
+
+        // 4. Update Material in IndexedDB (New Write Transaction per item)
+        console.log(`syncPendingMaterials: [Update Phase] Updating DB for ${material.id}`);
+        const updateTx = db.transaction(StoreNames.MATERIALS, 'readwrite');
+        const store = updateTx.objectStore(StoreNames.MATERIALS);
+        // Get a fresh copy within the new transaction
+        const existingMaterial = await store.get(material.id);
+
+        if (existingMaterial) {
+          existingMaterial.driveId = driveId;
+          existingMaterial.syncStatus = SyncStatus.UP_TO_DATE; // Use UP_TO_DATE after successful sync
+          existingMaterial.lastModified = Date.now();
+          // delete existingMaterial.content?.data; // Remove Blob content
+          await store.put(existingMaterial); // Use put to update
+          await updateTx.done; // Commit this specific update
+          uploadCount++;
+          console.log(`syncPendingMaterials: [Update Phase] Successfully updated ${material.id}.`);
+        } else {
+          // Should not happen if read transaction worked, but handle defensively
+          await updateTx.abort(); // Abort if material vanished
+          throw new Error(`Material ${material.id} disappeared before update.`);
+        }
+
+      } catch (err: any) {
+        console.error(`syncPendingMaterials: Failed to process material ${material.id}:`, err);
+        errorCount++;
+        // Optionally: Update status to ERROR in a separate transaction?
+        // For now, just count errors. The overall status will be set in backupDatabaseToDrive.
+        // try {
+        //     const errorTx = db.transaction(StoreNames.MATERIALS, 'readwrite');
+        //     const errorStore = errorTx.objectStore(StoreNames.MATERIALS);
+        //     const matToUpdate = await errorStore.get(material.id);
+        //     if (matToUpdate) {
+        //         matToUpdate.syncStatus = SyncStatus.ERROR;
+        //         await errorStore.put(matToUpdate);
+        //     }
+        //     await errorTx.done;
+        // } catch (updateErr) {
+        //     console.error(`Failed to mark material ${material.id} as ERROR:`, updateErr);
+        // }
+      }
+    }
+
+    console.log(`syncPendingMaterials: Phase 2 Finished. Uploaded: ${uploadCount}, Errors: ${errorCount}`);
+
+    // Report cumulative errors if any occurred during processing
     if (errorCount > 0) {
-        onError(new Error(`${errorCount} material(s) failed to upload.`));
+      onError(new Error(`${errorCount} material(s) failed to upload or update.`));
     }
-    // Transition back to idle or checking after uploads are done
-    // The main backup function will handle the final 'up_to_date' status
-    onSyncStatusChange(SyncStatus.CHECKING);
 
-}, [isAuthenticated, getDb, findOrCreateFolderByPath, uploadFileToFolder, onSyncStatusChange, onError]); // Dependencies updated
+    // Don't change overall status here; let backupDatabaseToDrive handle it based on results.
+    return { successCount: uploadCount, errorCount };
 
-/**
- * Back up database METADATA to Google Drive.
- * Ensures pending file uploads are attempted first.
- */
-const backupDatabaseToDrive = useCallback(async () => {
+  }, [isAuthenticated, getDb, findOrCreateFolderByPath, uploadFileToFolder, onSyncStatusChange, onError]); // Dependencies updated
+
+
+  /**
+   * Back up database METADATA to Google Drive.
+   * Ensures pending file uploads are attempted first.
+   */
+  const backupDatabaseToDrive = useCallback(async () => {
     if (!isAuthenticated()) {
-        throw new Error('Not authenticated');
+      throw new Error('Not authenticated');
     }
 
     onSyncStatusChange(SyncStatus.SYNCING_UP);
     onError(null);
+    let pendingSyncResult = { successCount: 0, errorCount: 0 };
 
     try {
-        // ***** SYNC PENDING FILES FIRST *****
-        await syncPendingMaterials();
-        // *************************************
+      // ***** SYNC PENDING FILES FIRST *****
+      console.log("backupDatabaseToDrive: Initiating syncPendingMaterials...");
+      pendingSyncResult = await syncPendingMaterials();
+      console.log("backupDatabaseToDrive: syncPendingMaterials finished.", pendingSyncResult);
+      // *************************************
 
-        console.log('Starting database metadata backup to Drive...');
-        // exportDbToJson now strips content automatically
-        const dbJson = await exportDbToJson();
-        const existingBackup = await findDbBackupFile();
+      // Proceed to metadata backup regardless of pending sync errors for now
+      // but the final status will reflect if errors occurred.
 
-        // Use gapi.client.request for upload
-        const path = existingBackup?.id
-          ? `/upload/drive/v3/files/${existingBackup.id}`
-          : '/upload/drive/v3/files';
-        const method = existingBackup?.id ? 'PATCH' : 'POST';
+      console.log('backupDatabaseToDrive: Starting database metadata backup to Drive...');
+      // exportDbToJson now strips content automatically
+      const dbJson = await exportDbToJson();
+      const existingBackup = await findDbBackupFile();
 
-        const metadata = {
-          name: STUDYPAL_DB_FILE,
-          mimeType: DB_BACKUP_MIME_TYPE,
-          ...(!existingBackup && { parents: ['appDataFolder'] })
-        };
-        const boundary = '-------314159265358979323846';
-        const delimiter = "\r\n--" + boundary + "\r\n";
-        const close_delim = "\r\n--" + boundary + "--";
-        const metadataStr = JSON.stringify(metadata);
+      // Use gapi.client.request for upload
+      const path = existingBackup?.id
+        ? `/upload/drive/v3/files/${existingBackup.id}`
+        : '/upload/drive/v3/files';
+      const method = existingBackup?.id ? 'PATCH' : 'POST';
 
-        const multipartRequestBody =
-            delimiter +
-            'Content-Type: application/json\r\n\r\n' +
-            metadataStr +
-            delimiter +
-            'Content-Type: ' + DB_BACKUP_MIME_TYPE + '\r\n\r\n' +
-            dbJson +
-            close_delim;
+      const metadata = {
+        name: STUDYPAL_DB_FILE,
+        mimeType: DB_BACKUP_MIME_TYPE,
+        ...(!existingBackup && { parents: ['appDataFolder'] })
+      };
+      const boundary = '-------314159265358979323846';
+      const delimiter = "\r\n--" + boundary + "\r\n";
+      const close_delim = "\r\n--" + boundary + "--";
+      const metadataStr = JSON.stringify(metadata);
 
-        const response = await driveApiAction(() =>
-            gapi.client.request({
-                path: path,
-                method: method,
-                params: { uploadType: 'multipart', fields: 'id, name, modifiedTime' },
-                headers: { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
-                body: multipartRequestBody
-            })
-        );
+      const multipartRequestBody =
+        delimiter +
+        'Content-Type: application/json\r\n\r\n' +
+        metadataStr +
+        delimiter +
+        'Content-Type: ' + DB_BACKUP_MIME_TYPE + '\r\n\r\n' +
+        dbJson +
+        close_delim;
 
-        const backupTime = new Date(response.result.modifiedTime || Date.now()).getTime();
+      const response = await driveApiAction(() =>
+        gapi.client.request({
+          path: path,
+          method: method,
+          params: { uploadType: 'multipart', fields: 'id, name, modifiedTime' },
+          headers: { 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
+          body: multipartRequestBody
+        })
+      );
 
-        // Signal completion to context
-        onSyncComplete(backupTime);
-        onSyncStatusChange(SyncStatus.UP_TO_DATE);
-        onConflictDetected(null);
-        console.log('Database metadata backup successful!', response.result);
+      const backupTime = new Date(response.result.modifiedTime || Date.now()).getTime();
+
+      // Signal completion to context
+      onSyncComplete(backupTime);
+      // Set final status based on pending sync results
+      const finalStatus = pendingSyncResult.errorCount > 0 ? SyncStatus.ERROR : SyncStatus.UP_TO_DATE;
+      onSyncStatusChange(finalStatus);
+      onConflictDetected(null); // Clear any previous conflict
+      console.log(`backupDatabaseToDrive: Metadata backup successful! Final status: ${finalStatus}`);
 
     } catch (err: any) {
-        console.error('Database backup failed:', err);
-        onError(err instanceof Error ? err : new Error('Database backup failed.'));
-        onSyncStatusChange(SyncStatus.ERROR);
+      console.error('backupDatabaseToDrive: Backup process failed:', err);
+      // Append pending sync errors if any
+      const finalError = pendingSyncResult.errorCount > 0
+        ? new Error(`Metadata backup failed after ${pendingSyncResult.errorCount} file upload errors. Last error: ${err.message}`)
+        : new Error(`Database backup failed: ${err.message}`);
+      onError(finalError);
+      onSyncStatusChange(SyncStatus.ERROR);
     }
-}, [isAuthenticated, syncPendingMaterials, findDbBackupFile, driveApiAction, onSyncStatusChange, onError, onConflictDetected, onSyncComplete]); // Added syncPendingMaterials dependency
+  }, [isAuthenticated, syncPendingMaterials, findDbBackupFile, driveApiAction, exportDbToJson, onSyncStatusChange, onError, onConflictDetected, onSyncComplete]); // Added exportDbToJson dependency
 
-/**
- * Restore database METADATA from Google Drive.
- * File content will be downloaded on demand later.
- */
-const restoreDatabaseFromDrive = useCallback(async () => {
+
+  /**
+   * Restore database METADATA from Google Drive.
+   * File content will be downloaded on demand later.
+   */
+  const restoreDatabaseFromDrive = useCallback(async () => {
     if (!isAuthenticated()) {
-        throw new Error('Not authenticated');
+      throw new Error('Not authenticated');
     }
 
     onSyncStatusChange(SyncStatus.SYNCING_DOWN);
     onError(null);
 
     try {
-        console.log('Attempting to restore database metadata from Drive...');
-        const backupFile = await findDbBackupFile();
-        if (!backupFile || !backupFile.id) {
-            // If no backup, maybe initialize local DB or signal 'no backup found' state?
-            // For now, treat as error or specific state.
-            console.warn('No database backup file found on Google Drive.');
-            onSyncStatusChange(SyncStatus.IDLE); // Or a new state like 'no_backup'
-            onError(new Error('No database backup found to restore.'));
-            return; // Stop restoration
-        }
+      console.log('Attempting to restore database metadata from Drive...');
+      const backupFile = await findDbBackupFile();
+      if (!backupFile || !backupFile.id) {
+        // If no backup, maybe initialize local DB or signal 'no backup found' state?
+        // For now, treat as error or specific state.
+        console.warn('No database backup file found on Google Drive.');
+        onSyncStatusChange(SyncStatus.IDLE); // Or a new state like 'no_backup'
+        onError(new Error('No database backup found to restore.'));
+        return; // Stop restoration
+      }
 
-        console.log(`Found backup file: ${backupFile.id}, modified: ${backupFile.modifiedTime}`);
-        // getDriveFileContent fetches the Blob
-        const blob = await getDriveFileContent(backupFile.id);
-        const dbJson = await blob.text(); // Convert Blob to text
+      console.log(`Found backup file: ${backupFile.id}, modified: ${backupFile.modifiedTime}`);
+      // getDriveFileContent fetches the Blob
+      const blob = await getDriveFileContent(backupFile.id);
+      const dbJson = await blob.text(); // Convert Blob to text
 
-        // importDbFromJson handles clearing and importing
-        await importDbFromJson(dbJson);
+      // importDbFromJson handles clearing and importing
+      await importDbFromJson(dbJson);
 
-        const driveModifiedTime = new Date(backupFile.modifiedTime || Date.now()).getTime();
+      const driveModifiedTime = new Date(backupFile.modifiedTime || Date.now()).getTime();
 
-        // Signal completion to context
-        onSyncComplete(driveModifiedTime);
-        onSyncStatusChange(SyncStatus.UP_TO_DATE);
-        onConflictDetected(null);
-        console.log('Database metadata restore successful!');
+      // Signal completion to context
+      onSyncComplete(driveModifiedTime);
+      onSyncStatusChange(SyncStatus.UP_TO_DATE);
+      onConflictDetected(null);
+      console.log('Database metadata restore successful!');
 
     } catch (err: any) {
-        console.error('Database restore failed:', err);
-        onError(err instanceof Error ? err : new Error('Database restore failed.'));
-        onSyncStatusChange(SyncStatus.ERROR);
+      console.error('Database restore failed:', err);
+      onError(err instanceof Error ? err : new Error('Database restore failed.'));
+      onSyncStatusChange(SyncStatus.ERROR);
     }
-}, [isAuthenticated, findDbBackupFile, getDriveFileContent, onSyncStatusChange, onError, onConflictDetected, onSyncComplete]);
+  }, [isAuthenticated, findDbBackupFile, getDriveFileContent, onSyncStatusChange, onError, onConflictDetected, onSyncComplete]);
 
-/**
- * Check backup file metadata without downloading content
- */
-const getBackupMetadata = useCallback(async (): Promise<gapi.client.drive.File | null> => { // Return type added
+  /**
+   * Check backup file metadata without downloading content
+   */
+  const getBackupMetadata = useCallback(async (): Promise<gapi.client.drive.File | null> => { // Return type added
     if (!isAuthenticated()) return null;
 
     try {
-        return await findDbBackupFile();
+      return await findDbBackupFile();
     } catch (err) {
-        console.error('Error getting backup metadata:', err);
-        // Don't change sync status here, just log/report
-        // onError(err instanceof Error ? err : new Error('Failed to get backup metadata.'));
-        return null;
+      console.error('Error getting backup metadata:', err);
+      // Don't change sync status here, just log/report
+      // onError(err instanceof Error ? err : new Error('Failed to get backup metadata.'));
+      return null;
     }
-}, [isAuthenticated, findDbBackupFile]);
+  }, [isAuthenticated, findDbBackupFile]);
 
 
   // Return API-related functionality including new file handlers

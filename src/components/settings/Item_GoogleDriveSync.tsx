@@ -28,7 +28,7 @@ import {
 } from '@mui/material';
 import React, { useEffect, useRef, useState } from 'react';
 
-import { useSyncContext } from '@contexts/SyncContext'; 
+import { useSyncContext } from '@contexts/SyncContext';
 import { exportDbToJson, importDbFromJson } from '@db';
 import { SyncStatus } from '@type/db.types';
 
@@ -57,7 +57,7 @@ const GoogleDriveSync: React.FC = () => {
         isAuthenticated,
         signIn,
         signOut,
-        syncStatus, 
+        syncStatus,
         error,
         lastSuccessfulSync,
         isInitialized
@@ -69,7 +69,7 @@ const GoogleDriveSync: React.FC = () => {
     const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
     const [fileToImport, setFileToImport] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    
+
     // Combined error from context and local
     const displayError = error?.message || localError;
     const currentSyncStatus = syncStatusMap[syncStatus] || syncStatusMap.idle;
@@ -203,7 +203,7 @@ const GoogleDriveSync: React.FC = () => {
             }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     {/* Use isInitialized from context to show loading state */}
-                    {!isInitialized ? ( 
+                    {!isInitialized ? (
                         <CircularProgress size={20} />
                     ) : isAuthenticated ? (
                         <CloudDoneIcon color="success" />
@@ -221,7 +221,7 @@ const GoogleDriveSync: React.FC = () => {
 
                 <Box>
                     {/* Auth button */}
-                    {isInitialized ? ( 
+                    {isInitialized ? (
                         isAuthenticated ? (
                             <Button
                                 variant="outlined"

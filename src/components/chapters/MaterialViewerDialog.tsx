@@ -1,187 +1,195 @@
-import React from 'react';
+import CloseIcon from '@mui/icons-material/Close';
 import {
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    Button,
-    Typography,
+    Alert,
+    Backdrop,
     Box,
-    LinearProgress,
-    styled,
-    alpha
+    CircularProgress,
+    IconButton,
+    Typography,
 } from '@mui/material';
-import ImageIcon from '@mui/icons-material/Image';
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import LinkIcon from '@mui/icons-material/Link';
-import DescriptionIcon from '@mui/icons-material/Description';
+import React, { useEffect, useMemo, useState } from 'react';
+
 import { Material, MaterialType } from '@type/db.types';
-import { formatBytes } from '@utils/utils';
 
-// --- Styled Components (Copied from ChaptersPage) ---
+// --- Sub-Components ---
 
-const StyledDialogTitle = styled(DialogTitle)(({ theme }) => ({
-    textAlign: 'center',
-    paddingBottom: theme.spacing(1),
-    fontWeight: 700,
-}));
+const previewableTypes = [
+    MaterialType.IMAGE,
+    MaterialType.PDF,
+    MaterialType.VIDEO,
+    MaterialType.AUDIO,
+    MaterialType.TEXT,
+];
 
-const StyledDialogContent = styled(DialogContent)(({ theme }) => ({
-    padding: theme.spacing(2, 3),
-}));
-
-const StyledDialogActions = styled(DialogActions)(({ theme }) => ({
-    padding: theme.spacing(2, 3),
-    justifyContent: 'space-between', // Keep consistent styling
-}));
-
-// --- Helper Function ---
-
-// Helper function for material icons
-const renderMaterialIcon = (type: MaterialType) => {
-    switch (type) {
-        case MaterialType.IMAGE: return <ImageIcon />;
-        case MaterialType.PDF: return <PictureAsPdfIcon />;
-        case MaterialType.LINK: return <LinkIcon />;
-        default: return <DescriptionIcon />;
-    }
-};
-
-
-// --- Component ---
-
-export interface MaterialViewerProps {
+interface FullscreenPreviewProps {
     open: boolean;
     onClose: () => void;
-    material: Material | null;
+    material: Material;
+    contentBlob: Blob | null;
 }
 
-const MaterialViewerDialog: React.FC<MaterialViewerProps> = ({ open, onClose, material }) => {
-    if (!material) return null;
+const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({ open, onClose, material, contentBlob }) => {
+    const [content, setContent] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
-    const renderContent = () => {
+    // Create Object URL for non-text types
+    const objectUrl = useMemo(() => {
+        if (contentBlob && material.type !== MaterialType.TEXT) {
+            try {
+                return URL.createObjectURL(contentBlob);
+            } catch (error) {
+                console.error("Error creating object URL:", error);
+                return null;
+            }
+        }
+        return null;
+    }, [contentBlob, material.type]);
+
+    // Effect to load content
+    useEffect(() => {
+        let isMounted = true;
+        if (open && contentBlob) {
+            setIsLoading(true);
+            setContent(null);
+
+            if (material.type === MaterialType.LINK) {
+                contentBlob.text()
+                    .then(text => {
+                        if (isMounted) {
+                            setContent(text);
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Error reading text blob:", err);
+                        if (isMounted) {
+                            setContent("Error loading text content.");
+                        }
+                    })
+                    .finally(() => {
+                        if (isMounted) {
+                            setIsLoading(false);
+                        }
+                    });
+            } else {
+                // For non-text types, use the objectUrl
+                setContent(objectUrl);
+                setIsLoading(false);
+            }
+        } else {
+            setContent(null); // Clear content if no blob
+        }
+
+        return () => {
+            isMounted = false;
+        };
+    }, [open, material.type, contentBlob, objectUrl]);
+
+    // Effect to revoke Object URL on cleanup
+    useEffect(() => {
+        return () => {
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+            }
+        };
+    }, [objectUrl]);
+
+    const renderPreviewContent = () => {
+        if (!content && !material.driveId) return <Alert severity="error" children="No content available. This material doesnt seemed to be synced to your G-Drive." />; // Show error if no content and no driveId
+
+        if (isLoading) return <CircularProgress color="inherit" />;
+
+        if (!content || !objectUrl) return <Alert severity="error" children="Failed to load content." />;
+
         switch (material.type) {
-            case MaterialType.IMAGE:
-                if (material.sourceRef) {
-                    return <Box component="img" src={material.sourceRef} alt={material.name} sx={{ maxWidth: '100%', maxHeight: '70vh', display: 'block', margin: 'auto' }} />;
-                } else if (material.content instanceof Blob) {
-                    const objectUrl = URL.createObjectURL(material.content);
-                    return (
-                        <Box
-                            component="img"
-                            src={objectUrl}
-                            alt={material.name}
-                            sx={{ maxWidth: '100%', maxHeight: '70vh', display: 'block', margin: 'auto' }}
-                            onLoad={() => URL.revokeObjectURL(objectUrl)}
-                        />
-                    );
-                }
-                return <Typography>Unable to display image content</Typography>;
-
-            case MaterialType.PDF:
-                if (material.sourceRef) {
-                    return (
-                        <Box sx={{ width: '100%', height: '70vh' }}>
-                            <iframe
-                                src={material.sourceRef}
-                                width="100%"
-                                height="100%"
-                                style={{ border: 'none' }}
-                                title={material.name}
-                            />
-                        </Box>
-                    );
-                } else if (material.content instanceof Blob) {
-                    const objectUrl = URL.createObjectURL(material.content);
-                    return (
-                        <Box sx={{ width: '100%', height: '70vh' }}>
-                            <iframe
-                                src={objectUrl}
-                                width="100%"
-                                height="100%"
-                                style={{ border: 'none' }}
-                                title={material.name}
-                                onLoad={() => URL.revokeObjectURL(objectUrl)}
-                            />
-                        </Box>
-                    );
-                }
-                return <Typography>Unable to display PDF content</Typography>;
-
-            case MaterialType.LINK:
-                return (
-                    <Box sx={{ textAlign: 'center', p: 3 }}>
-                        <Typography variant="h6" gutterBottom>External Link</Typography>
-                        <Button
-                            variant="outlined"
-                            color="primary"
-                            href={material.sourceRef || ''}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            startIcon={<LinkIcon />}
-                        >
-                            Open Link
-                        </Button>
-                        <Typography variant="caption" display="block" sx={{ mt: 2, wordBreak: 'break-all' }}>
-                            {material.sourceRef}
-                        </Typography>
-                    </Box>
-                );
-
-            case MaterialType.TEXT:
-                return (
-                    <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1, maxHeight: '70vh', overflowY: 'auto' }}>
-                        <Typography component="pre" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                            {typeof material.content === 'string' ? material.content : 'Content not available'}
-                        </Typography>
-                    </Box>
-                );
-
+            case MaterialType.IMAGE: return <Box component="img" src={content} alt={material.name} sx={{ display: 'block', maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain' }} />;
+            case MaterialType.PDF: return <Box component="iframe" src={content} title={material.name} sx={{ width: '95vw', height: '90vh', border: 'none', bgcolor: 'white' }} />;
+            case MaterialType.VIDEO: return <Box component="video" src={content} controls sx={{ display: 'block', maxWidth: '95vw', maxHeight: '90vh' }} />;
+            case MaterialType.AUDIO: return <Box component="audio" src={content} controls sx={{ display: 'block', mt: 4 }} />;
+            case MaterialType.TEXT: return <Box component="pre" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', p: 2, bgcolor: 'background.paper', borderRadius: 1, maxHeight: '90vh', overflowY: 'auto', color: 'text.primary', width: '80vw' }}>{content ?? '(Empty or loading...)'}</Box>;
             default:
-                return <Typography>This material type cannot be previewed directly</Typography>;
+                // For non-previewable types or links, show basic info or message
+                return <Typography color="inherit">Preview not supported or content unavailable.</Typography>;
         }
     };
 
     return (
-        <Dialog
+        <Backdrop
             open={open}
-            onClose={onClose}
-            maxWidth="md"
-            fullWidth
-            PaperProps={{
-                sx: {
-                    borderRadius: 3,
-                    background: (theme) => alpha(theme.palette.background.paper, 0.95),
-                    backdropFilter: 'blur(12px)',
-                }
-            }}
+            onClick={onClose}
+            sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1, bgcolor: 'rgba(0, 0, 0, 0.85)' }}
         >
-            <StyledDialogTitle>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {renderMaterialIcon(material.type)}
-                    <Typography variant="h6" sx={{ ml: 1 }}>{material.name}</Typography>
+            <Box sx={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
+                <Box onClick={(e) => e.stopPropagation()}>
+                    {renderPreviewContent()}
                 </Box>
-            </StyledDialogTitle>
-            <StyledDialogContent>
-                <Box sx={{ mb: 2 }}>
-                    {renderContent()}
-                </Box>
-                {material.size !== undefined && ( // Check for undefined explicitly
-                    <Typography variant="caption" color="text.secondary">
-                        Size: {formatBytes(material.size)}
-                    </Typography>
-                )}
-                {material.progress !== undefined && material.progress < 100 && ( // Only show progress if not 100%
-                    <Box sx={{ mt: 2 }}>
-                        <Typography variant="body2" gutterBottom>Progress: {material.progress}%</Typography>
-                        <LinearProgress variant="determinate" value={material.progress} sx={{ height: 6, borderRadius: 3 }} />
-                    </Box>
-                )}
-            </StyledDialogContent>
-            <StyledDialogActions sx={{ justifyContent: 'flex-end' }}> {/* Align close button to the right */}
-                <Button onClick={onClose} color="primary" variant="outlined">Close</Button>
-            </StyledDialogActions>
-        </Dialog>
+                <IconButton
+                    aria-label="close"
+                    onClick={onClose}
+                    sx={{ position: 'absolute', top: 16, right: 16, color: (theme) => theme.palette.grey[300], bgcolor: 'rgba(0, 0, 0, 0.5)', '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.7)' } }}
+                >
+                    <CloseIcon />
+                </IconButton>
+                <Typography sx={{ position: 'absolute', bottom: 16, left: 16, color: (theme) => theme.palette.grey[400], fontSize: '0.9rem' }}>
+                    {material.name}
+                </Typography>
+            </Box>
+        </Backdrop>
+    );
+};
+
+
+// --- Main Component ---
+
+interface MaterialViewerDialogProps {
+    open: boolean;
+    material: Material | null;
+    onClose: () => void;
+    chapterId: string | null;
+}
+
+const MaterialViewerDialog: React.FC<MaterialViewerDialogProps> = ({ open, material, onClose, chapterId }) => {
+    const [contentBlob, setContentBlob] = useState<Blob | null>(null);
+
+    const handleClose = () => {
+        setContentBlob(null); // Clear blob on close
+        onClose();
+    };
+
+    useEffect(() => {
+        if (!open || !material) return setContentBlob(null); // Clear blob if not open or no material
+
+        const localData = material.content?.data;
+
+        // If the content is a base64 string, first decode it and then convert it to a Blob
+        if (typeof localData === 'string' && /^data:([a-zA-Z0-9\/+]+);base64,/.test(localData)) {
+            const byteString = atob(localData.split(',')[1]);
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            return setContentBlob(new Blob([ab], { type: material.content?.mimeType || 'application/octet-stream' }));
+        }
+
+        // If the content is a regular string, convert it to a Blob
+        if (typeof localData === 'string') return setContentBlob(new Blob([localData], { type: material.content?.mimeType || 'text/plain' }));
+
+        // If the content is already a Blob, just set it directly
+        return setContentBlob(localData as Blob);
+    }, [open, material]);;
+
+    if (!open || !material) {
+        return null;
+    }
+
+    // Always render the previewer; it handles loading/unavailable states
+    return (
+        <FullscreenPreview
+            open={open}
+            onClose={handleClose}
+            material={material}
+            contentBlob={contentBlob}
+        />
     );
 };
 

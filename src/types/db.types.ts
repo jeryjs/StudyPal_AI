@@ -24,7 +24,7 @@ export enum SyncStatus {
 	UP_TO_DATE = "up_to_date",	// UP_TO_DATE for synced items
 	CONFLICT = "conflict",		// CONFLICT for sync conflicts
 	ERROR = "error",			// ERROR for sync errors
-    PENDING = "pending",		// PENDING for local-only changes before first sync
+	PENDING = "pending",		// PENDING for local-only changes before first sync
 }
 
 /**
@@ -78,7 +78,7 @@ export interface Chapter extends SyncableItem {
 export interface Material extends SyncableItem {
 	chapterId: string;       // Parent chapter ID
 	type: MaterialType;      // Material type
-	content?: string | ArrayBuffer; // string for text, ArrayBuffer for cached binary files (PDF, images, etc.)
+	content?: { mimeType: string, data: string | Blob }; // string for text, Blob for cached binary files (PDF, images, etc.)
 	sourceRef?: string;     // Optional reference (URL or note) for where the material came from
 	progress?: number;      // material completion progress (0-100% read or covered, etc)
 }

@@ -80,3 +80,45 @@ export function formatBytes(bytes: number, decimals: number = 1): string {
 
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
+
+/**
+ * Converts a Blob to a Base64 string.
+ *
+ * @param {Blob} blob - The Blob to convert.
+ * @returns {Promise<string>} A promise that resolves with the Base64 string representation of the Blob.
+ */
+export const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+};
+
+export const base64ToBlob = (base64: string): Blob => {
+    const byteCharacters = atob(base64.split(',')[1]); // Remove the prefix before decoding
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: base64.split(',')[0].split(':')[1].split(';')[0] });
+}
+
+
+/**
+ * Converts an ArrayBuffer to a Base64 string.
+ *
+ * @param {ArrayBuffer} buffer - The ArrayBuffer to convert.
+ * @returns {string} The Base64 string representation of the ArrayBuffer.
+ */
+export const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+};

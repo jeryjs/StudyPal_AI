@@ -1,35 +1,36 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { useGoogleDriveSync, DriveEventCallbacks } from '@hooks/useGoogleDriveSync';
-import { exportDbToJson } from '@db';
+import { refreshDb } from '@db';
+import { DriveEventCallbacks, useGoogleDriveSync } from '@hooks/useGoogleDriveSync';
 import {
-    Dialog,
-    DialogActions,
-    DialogContent,
-    DialogContentText,
-    DialogTitle,
-    Button,
-    Typography,
-    CircularProgress,
-    Box,
-    Tooltip,
-    Divider,
-    Paper,
-    List,
-    ListItem,
-    ListItemText,
-    Chip,
-    Stack, // Keep Stack for buttons
-    Grid // Use Grid for layout
-} from '@mui/material';
-import { 
-    SyncProblem as SyncProblemIcon,
-    Storage as StorageIcon,
-    CloudQueue as CloudIcon,
-    InfoOutlined as InfoIcon,
-    ArrowDownward as DownloadIcon,
-    ArrowUpward as UploadIcon
+  CloudQueue as CloudIcon,
+  ArrowDownward as DownloadIcon,
+  InfoOutlined as InfoIcon,
+  Storage as StorageIcon,
+  SyncProblem as SyncProblemIcon,
+  ArrowUpward as UploadIcon
 } from '@mui/icons-material';
+import {
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  Divider, // Keep Stack for buttons
+  Grid // Use Grid for layout
+  ,
+  List,
+  ListItem,
+  ListItemText,
+  Paper,
+  Stack,
+  Tooltip,
+  Typography
+} from '@mui/material';
 import { SyncStatus } from '@type/db.types';
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 // --- Constants ---
 const LAST_SYNC_TIMESTAMP_KEY = 'studyPalLastSyncTimestamp';
@@ -44,36 +45,37 @@ export interface SyncContextType {
   isGapiLoaded: boolean;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
-  
+
   // Sync state
   syncStatus: SyncStatus;
   error: Error | null;
   lastSuccessfulSync: number | null;
-  
+
   // Conflict handling
   conflictDetails: { driveModified: number; localModified: number; driveSize?: number } | null;
   resolveConflict: (resolution: 'local' | 'drive' | null) => Promise<void>;
-  
+
   // Manual operations
   backupDatabaseToDrive: () => Promise<void>;
   restoreDatabaseFromDrive: () => Promise<void>;
-  
+  getDriveFileContent: (fileId: string) => Promise<Blob>;
+
   // Flag to track if initialization has completed
   isInitialized: boolean;
 }
 
 // Helper function to format timestamp for display
 const formatTimestamp = (timestamp: number | null): string => {
-    if (!timestamp) return 'Never';
-    return new Date(timestamp).toLocaleString();
+  if (!timestamp) return 'Never';
+  return new Date(timestamp).toLocaleString();
 };
 
 // Helper to format file size
 const formatFileSize = (bytes?: number): string => {
-    if (bytes === undefined || bytes === null) return 'Unknown size'; // Handle null/undefined
-    if (bytes < 1024) return `${bytes} bytes`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes === undefined || bytes === null) return 'Unknown size'; // Handle null/undefined
+  if (bytes < 1024) return `${bytes} bytes`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 // Create the context with a default value
@@ -84,9 +86,9 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
   // Sync state managed by context
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(SyncStatus.IDLE);
   const [error, setError] = useState<Error | null>(null);
-  const [conflictDetails, setConflictDetails] = useState<{ 
-    driveModified: number; 
-    localModified: number; 
+  const [conflictDetails, setConflictDetails] = useState<{
+    driveModified: number;
+    localModified: number;
     driveSize?: number; // Keep driveSize
   } | null>(null);
   const [lastSuccessfulSync, setLastSuccessfulSync] = useState<number | null>(() => {
@@ -121,7 +123,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
       setLoadingResolution(null);
     }
   };
-  
+
   // Use the Google Drive sync hook to handle API interactions
   const {
     isGapiLoaded,
@@ -131,6 +133,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
     getBackupMetadata,
     backupDatabaseToDrive: backupToGDrive,
     restoreDatabaseFromDrive: restoreFromGDrive,
+    getDriveFileContent,
   } = useGoogleDriveSync(callbacks);
 
   // Effect to show conflict dialog when in conflict state
@@ -169,6 +172,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
           backupTimeoutRef.current = setTimeout(() => {
             console.log('Debounce timer expired, triggering auto-backup.');
             backupDatabaseToDrive(); // Trigger the backup after delay
+            setTimeout(() => isFirstChangeRef.current = true, 10000); // Reset first change flag 10s after backup
           }, DEBOUNCE_DELAY);
         }
       }
@@ -238,23 +242,23 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
       const driveModifiedTime = new Date(driveFile.modifiedTime || 0).getTime();
       // Get file size if available
       const driveSize = driveFile.size ? parseInt(driveFile.size as string, 10) : undefined;
-      
+
       if (!localLastSync) {
         // Have Drive backup, but never synced before (or cleared local storage)
         console.log('Drive backup found, but no local sync history. Prompting user.');
-        setConflictDetails({ 
-          driveModified: driveModifiedTime, 
+        setConflictDetails({
+          driveModified: driveModifiedTime,
           localModified: Date.now(),
           driveSize // Pass driveSize
-        }); 
+        });
         setSyncStatus(SyncStatus.CONFLICT);
       } else if (driveModifiedTime > localLastSync + 1000) { // Add buffer for clock skew
         // Drive file is newer than last sync
         if (isDbDirtyRef.current) {
           // Conflict: Both Drive and local have changed since last sync
           console.log('Conflict detected: Drive backup and local DB both changed since last sync.');
-          setConflictDetails({ 
-            driveModified: driveModifiedTime, 
+          setConflictDetails({
+            driveModified: driveModifiedTime,
             localModified: Date.now(),
             driveSize // Pass driveSize
           });
@@ -262,8 +266,8 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
         } else {
           // No local changes, Drive is newer -> Prompt user (safest default)
           console.log('Drive backup is newer than last sync, no local changes detected. Prompting user.');
-          setConflictDetails({ 
-            driveModified: driveModifiedTime, 
+          setConflictDetails({
+            driveModified: driveModifiedTime,
             localModified: localLastSync,
             driveSize // Pass driveSize
           });
@@ -326,12 +330,14 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
       // State will be updated via the callbacks
 
       // Consider prompting user to reload or using a state management library to refresh data
+      // await refreshDb();
+      alert("Database restored from Drive. Reloading page...");
       window.location.reload();
     } catch (err) {
       console.error('Restore error in SyncContext:', err);
       // Error should be handled via callbacks
     }
-  }, [restoreFromGDrive]);
+  }, [restoreFromGDrive, refreshDb]);
 
   /**
    * Handle conflict resolution - called from conflict dialog
@@ -375,13 +381,14 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
     resolveConflict: handleResolveConflict,
     backupDatabaseToDrive,
     restoreDatabaseFromDrive,
+    getDriveFileContent,
     isInitialized
   };
 
   return (
     <SyncContext.Provider value={contextValue}>
       {children}
-      
+
       {/* Enhanced Conflict Resolution Dialog */}
       <Dialog
         open={isConflictDialogOpen}
@@ -403,136 +410,136 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
 
             {/* Enhanced metadata comparison - using Grid */}
             {conflictDetails && (
-                <Box sx={{ mt: 2, mb: 2 }}>
-                    {/* Use Grid container */}
-                    <Grid container spacing={2} alignItems="stretch"> 
-                        {/* Google Drive Data Card - Grid item */}
-                        <Grid size={{xs:12, md:6}}> 
-                            <Paper elevation={1} sx={{ p: 2, height: '100%' }}> {/* Ensure Paper fills Grid item height */}
-                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                    <CloudIcon color="primary" sx={{ mr: 1 }} />
-                                    <Typography variant="subtitle1" fontWeight="bold">
-                                        Google Drive Data
-                                    </Typography>
-                                </Box>
-                                <Divider sx={{ mb: 2 }} />
-                                <List dense>
-                                    <ListItem>
-                                        <ListItemText 
-                                            primary="Last Modified"
-                                            secondary={formatTimestamp(conflictDetails.driveModified)}
-                                        />
-                                    </ListItem>
-                                    {/* Display driveSize if available */}
-                                    {(conflictDetails.driveSize !== undefined && conflictDetails.driveSize !== null) && (
-                                    <ListItem>
-                                        <ListItemText 
-                                            primary="Backup Size"
-                                            secondary={formatFileSize(conflictDetails.driveSize)}
-                                        />
-                                    </ListItem>
-                                    )}
-                                </List>
-                                <Tooltip title="Choosing this will download from Drive and replace your local data">
-                                    <Chip 
-                                        icon={<DownloadIcon />} 
-                                        label="Will download from Drive" 
-                                        size="small" 
-                                        color="primary" 
-                                        variant="outlined"
-                                        sx={{ mt: 1 }}
-                                    />
-                                </Tooltip>
-                            </Paper>
-                        </Grid>
-                        
-                        {/* Local Data Card - Grid item */}
-                        <Grid size={{xs:12, md:6}}> 
-                            <Paper elevation={1} sx={{ p: 2, height: '100%' }}> {/* Ensure Paper fills Grid item height */}
-                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                    <StorageIcon color="secondary" sx={{ mr: 1 }} />
-                                    <Typography variant="subtitle1" fontWeight="bold">
-                                        Local Data
-                                    </Typography>
-                                </Box>
-                                <Divider sx={{ mb: 2 }} />
-                                <List dense>
-                                    <ListItem>
-                                        <ListItemText 
-                                            primary="Last Modified"
-                                            secondary={formatTimestamp(conflictDetails.localModified)}
-                                        />
-                                    </ListItem>
-                                    {/* Local metadata can be expanded in future */}
-                                    <ListItem>
-                                        <ListItemText 
-                                            primary="Status"
-                                            secondary="Contains your current working data"
-                                        />
-                                    </ListItem>
-                                </List>
-                                <Tooltip title="Choosing this will upload to Drive and replace the backup">
-                                    <Chip 
-                                        icon={<UploadIcon />} 
-                                        label="Will upload to Drive" 
-                                        size="small" 
-                                        color="secondary" 
-                                        variant="outlined"
-                                        sx={{ mt: 1 }}
-                                    />
-                                </Tooltip>
-                            </Paper>
-                        </Grid>
-                    </Grid>
-                </Box>
+              <Box sx={{ mt: 2, mb: 2 }}>
+                {/* Use Grid container */}
+                <Grid container spacing={2} alignItems="stretch">
+                  {/* Google Drive Data Card - Grid item */}
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Paper elevation={1} sx={{ p: 2, height: '100%' }}> {/* Ensure Paper fills Grid item height */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <CloudIcon color="primary" sx={{ mr: 1 }} />
+                        <Typography variant="subtitle1" fontWeight="bold">
+                          Google Drive Data
+                        </Typography>
+                      </Box>
+                      <Divider sx={{ mb: 2 }} />
+                      <List dense>
+                        <ListItem>
+                          <ListItemText
+                            primary="Last Modified"
+                            secondary={formatTimestamp(conflictDetails.driveModified)}
+                          />
+                        </ListItem>
+                        {/* Display driveSize if available */}
+                        {(conflictDetails.driveSize !== undefined && conflictDetails.driveSize !== null) && (
+                          <ListItem>
+                            <ListItemText
+                              primary="Backup Size"
+                              secondary={formatFileSize(conflictDetails.driveSize)}
+                            />
+                          </ListItem>
+                        )}
+                      </List>
+                      <Tooltip title="Choosing this will download from Drive and replace your local data">
+                        <Chip
+                          icon={<DownloadIcon />}
+                          label="Will download from Drive"
+                          size="small"
+                          color="primary"
+                          variant="outlined"
+                          sx={{ mt: 1 }}
+                        />
+                      </Tooltip>
+                    </Paper>
+                  </Grid>
+
+                  {/* Local Data Card - Grid item */}
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Paper elevation={1} sx={{ p: 2, height: '100%' }}> {/* Ensure Paper fills Grid item height */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                        <StorageIcon color="secondary" sx={{ mr: 1 }} />
+                        <Typography variant="subtitle1" fontWeight="bold">
+                          Local Data
+                        </Typography>
+                      </Box>
+                      <Divider sx={{ mb: 2 }} />
+                      <List dense>
+                        <ListItem>
+                          <ListItemText
+                            primary="Last Modified"
+                            secondary={formatTimestamp(conflictDetails.localModified)}
+                          />
+                        </ListItem>
+                        {/* Local metadata can be expanded in future */}
+                        <ListItem>
+                          <ListItemText
+                            primary="Status"
+                            secondary="Contains your current working data"
+                          />
+                        </ListItem>
+                      </List>
+                      <Tooltip title="Choosing this will upload to Drive and replace the backup">
+                        <Chip
+                          icon={<UploadIcon />}
+                          label="Will upload to Drive"
+                          size="small"
+                          color="secondary"
+                          variant="outlined"
+                          sx={{ mt: 1 }}
+                        />
+                      </Tooltip>
+                    </Paper>
+                  </Grid>
+                </Grid>
+              </Box>
             )}
 
             <Box sx={{ mt: 2, display: 'flex', alignItems: 'center' }}>
-                <InfoIcon color="warning" sx={{ mr: 1 }} fontSize="small" />
-                <Typography variant="body2" color="warning.main">
-                    Selecting a version will replace the other completely. This action cannot be undone.
-                </Typography>
+              <InfoIcon color="warning" sx={{ mr: 1 }} fontSize="small" />
+              <Typography variant="body2" color="warning.main">
+                Selecting a version will replace the other completely. This action cannot be undone.
+              </Typography>
             </Box>
           </DialogContentText>
         </DialogContent>
         {/* Use Stack for responsive button layout */}
-        <DialogActions sx={{ p: { xs: 2, sm: 3 } }}> 
-            <Stack 
-                direction={{ xs: 'column', sm: 'row' }} 
-                spacing={2} 
-                justifyContent="center" 
-                width="100%"
+        <DialogActions sx={{ p: { xs: 2, sm: 3 } }}>
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={2}
+            justifyContent="center"
+            width="100%"
+          >
+            {/* Drive Button with loading indicator */}
+            <Button
+              onClick={() => handleResolveConflict('drive')}
+              variant="outlined"
+              color="primary"
+              disabled={loadingResolution !== null}
+              startIcon={loadingResolution === 'drive' ?
+                <CircularProgress size={16} color="inherit" /> :
+                <CloudIcon />
+              }
+              sx={{ width: { xs: '100%', sm: 'auto' }, minWidth: { sm: 200 } }} // Responsive width
             >
-                {/* Drive Button with loading indicator */}
-                <Button 
-                    onClick={() => handleResolveConflict('drive')} 
-                    variant="outlined"
-                    color="primary"
-                    disabled={loadingResolution !== null}
-                    startIcon={loadingResolution === 'drive' ? 
-                        <CircularProgress size={16} color="inherit" /> : 
-                        <CloudIcon />
-                    }
-                    sx={{ width: { xs: '100%', sm: 'auto' }, minWidth: { sm: 200 } }} // Responsive width
-                >
-                    {loadingResolution === 'drive' ? 'Downloading...' : 'Use Google Drive Data'}
-                </Button>
-                
-                {/* Local Button with loading indicator */}
-                <Button 
-                    onClick={() => handleResolveConflict('local')} 
-                    variant="outlined"
-                    color="secondary"
-                    disabled={loadingResolution !== null}
-                    startIcon={loadingResolution === 'local' ? 
-                        <CircularProgress size={16} color="inherit" /> : 
-                        <StorageIcon />
-                    }
-                    sx={{ width: { xs: '100%', sm: 'auto' }, minWidth: { sm: 200 } }} // Responsive width
-                >
-                    {loadingResolution === 'local' ? 'Uploading...' : 'Keep Local Data'}
-                </Button>
-            </Stack>
+              {loadingResolution === 'drive' ? 'Downloading...' : 'Use Google Drive Data'}
+            </Button>
+
+            {/* Local Button with loading indicator */}
+            <Button
+              onClick={() => handleResolveConflict('local')}
+              variant="outlined"
+              color="secondary"
+              disabled={loadingResolution !== null}
+              startIcon={loadingResolution === 'local' ?
+                <CircularProgress size={16} color="inherit" /> :
+                <StorageIcon />
+              }
+              sx={{ width: { xs: '100%', sm: 'auto' }, minWidth: { sm: 200 } }} // Responsive width
+            >
+              {loadingResolution === 'local' ? 'Uploading...' : 'Keep Local Data'}
+            </Button>
+          </Stack>
         </DialogActions>
       </Dialog>
     </SyncContext.Provider>

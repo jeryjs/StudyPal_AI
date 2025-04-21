@@ -1,6 +1,7 @@
-import { openDB, DBSchema, IDBPDatabase, IDBPTransaction, StoreNames as IDBStoreNames, IndexNames as IDBIndexNames } from "idb";
+import { DBSchema, IndexNames as IDBIndexNames, IDBPDatabase, IDBPTransaction, StoreNames as IDBStoreNames, openDB } from "idb";
 // Import the new SyncStatus enum
-import { Material, MaterialType, SyncStatus, Chapter, Subject, SyncQueueItem } from "./types/db.types"; 
+import { base64ToBlob, blobToBase64 } from "@utils/utils";
+import { Chapter, Material, Subject, SyncQueueItem, SyncStatus } from "./types/db.types";
 
 /**
  * Application database name.
@@ -35,9 +36,9 @@ type SyncQueueIndexNames = 'by-timestamp';
 export interface StudyPalDB extends DBSchema {
 	[StoreNames.SETTINGS]: { key: string; value: any };
 	// Use the new SyncStatus enum for index value types
-	[StoreNames.SUBJECTS]: { key: string; value: Subject; indexes: { [N in SubjectIndexNames]: SyncStatus } }; 
-	[StoreNames.CHAPTERS]: { key: string; value: Chapter; indexes: { 'by-subjectId': string, 'by-syncStatus': SyncStatus } }; 
-	[StoreNames.MATERIALS]: { key: string; value: Material; indexes: { 'by-chapterId': string, 'by-syncStatus': SyncStatus } }; 
+	[StoreNames.SUBJECTS]: { key: string; value: Subject; indexes: { [N in SubjectIndexNames]: SyncStatus } };
+	[StoreNames.CHAPTERS]: { key: string; value: Chapter; indexes: { 'by-subjectId': string, 'by-syncStatus': SyncStatus } };
+	[StoreNames.MATERIALS]: { key: string; value: Material; indexes: { 'by-chapterId': string, 'by-syncStatus': SyncStatus } };
 	[StoreNames.SYNC_QUEUE]: { key: string; value: SyncQueueItem; indexes: { [N in SyncQueueIndexNames]: number } };
 }
 
@@ -67,11 +68,11 @@ export function getDb(): Promise<IDBPDatabase<StudyPalDB>> {
 				// Helper to create index if it doesn't exist - strongly typed
 				const ensureIndex = <SName extends StoreNames,
 					IdxName extends IDBIndexNames<StudyPalDB, SName>>(
-					storeName: SName,
-					indexName: IdxName,
-					keyPath: string | string[],
-					options?: IDBIndexParameters
-				) => {
+						storeName: SName,
+						indexName: IdxName,
+						keyPath: string | string[],
+						options?: IDBIndexParameters
+					) => {
 					const store = (transaction as IDBPTransaction<StudyPalDB, IDBStoreNames<StudyPalDB>[], "versionchange">).objectStore(storeName);
 					if (!store.indexNames.contains(indexName)) {
 						store.createIndex(indexName, keyPath, options);
@@ -241,10 +242,12 @@ export class DBStore<T> {
 	/**
 	 * Put a value into the store (useful when key is part of the value or using key generator).
 	 */
-	async put(value: T, key?: string): Promise<void> {
+	async put(value: T, key?: string, dispatchChangeEvent = true): Promise<void> {
 		const db = await getDb();
 		await db.put(this.storeName, value, key);
-		this.dispatchChangeEvent(); // Dispatch after successful put
+		if (dispatchChangeEvent) {
+			this.dispatchChangeEvent(); // Dispatch after successful put
+		}
 	}
 }
 
@@ -252,37 +255,57 @@ export class DBStore<T> {
 
 /**
  * Exports all data from specified IndexedDB stores to a JSON string.
- * Optoinally, Strips 'content' (ArrayBuffer) from materials before export.
+ * Optoinally, Strips 'content' (Blob) from materials before export.
  */
-export const exportDbToJson = async (stripContent = true): Promise<string> => {
+export const exportDbToJson = async (stripContentData = true): Promise<string> => {
 	const db = await getDb();
 	const exportData: DbExport = {};
 	const storesToExport: StoreNames[] = [StoreNames.SETTINGS, StoreNames.SUBJECTS, StoreNames.CHAPTERS, StoreNames.MATERIALS];
 
-	const tx = db.transaction(storesToExport, 'readonly');
-
 	for (const storeName of storesToExport) {
-		const store = tx.objectStore(storeName);
-		let items = await store.getAll();
+		try {
+			const tx = db.transaction(storeName, 'readonly');
+			const store = tx.objectStore(storeName);
+			let items = await store.getAll();
 
-		// When stripContent is true, strip content from all materials
-		if (storeName === StoreNames.MATERIALS) {
-			items = items.map((item: Material) => {
-				if (stripContent) {
-					const { content, ...rest } = item;
-					return rest; // Return without content
+			if (storeName === StoreNames.SETTINGS) {
+				// Handle settings store: export as array of { key: string; value: any }
+				const allKeys = await db.getAllKeys(storeName);
+				// Explicitly type the array
+				const settingsData: { key: string; value: any }[] = [];
+				for (const key of allKeys) {
+					const value = await db.get(storeName, key);
+					settingsData.push({ key, value });
 				}
-				return item;
-			});
-		}
+				exportData[storeName] = settingsData;
+			}
 
-		exportData[storeName] = items;
+			// When stripContent is true, strip content from all materials
+			else if (storeName === StoreNames.MATERIALS) {
+				exportData[storeName] = items.map((item: Material) => {
+					if (stripContentData) {
+						return { ...item, content: { mimeType: item.content?.mimeType, data: undefined } }; // Return without data
+					} else if (item.content?.data instanceof Blob) {
+						return { ...item, content: { mimeType: item.content.mimeType, data: blobToBase64(item.content.data) } }; // Convert Blob to base64 string for export
+					}
+					return item;
+				});
+			}
+
+			else exportData[storeName] = items;
+
+			await tx.done;
+			console.log(`Exported ${items?.length} items from ${storeName}`);
+
+		} catch (err) {
+			console.error(`Error exporting store ${storeName}:`, err);
+			throw new Error(`Failed to export data from ${storeName}`);
+		}
 	}
 
-	await tx.done;
 	console.log("DB Export: Exported stores:", storesToExport.join(', '));
 	// Use null replacer, 2 spaces for readability
-	return JSON.stringify(exportData, null, 2); 
+	return JSON.stringify(exportData, null, 2);
 };
 
 /**
@@ -295,34 +318,58 @@ export const importDbFromJson = async (jsonString: string): Promise<void> => {
 	const storesToImport = Object.keys(importData) as StoreNames[];
 
 	// Use 'readwrite' for clearing and adding
-	const tx = db.transaction(storesToImport, 'readwrite'); 
+	const tx = db.transaction(storesToImport, 'readwrite');
 
 	console.log("DB Import: Starting import for stores:", storesToImport.join(', '));
 
 	for (const storeName of storesToImport) {
-		if (importData[storeName]) {
-			const store = tx.objectStore(storeName);
-			await store.clear(); // Clear existing data in the store
-			console.log(`DB Import: Cleared store ${storeName}`);
-			let count = 0;
-			for (const item of importData[storeName]!) {
-				// Use 'put' which handles both insert and update based on key
-				// Assuming items have a valid 'id' property to be used as the key
-				if (item && typeof item.id !== 'undefined') { 
-					await store.put(item, item.id); 
-					count++;
-				} else {
-					console.warn(`DB Import: Skipping item in ${storeName} due to missing or invalid id:`, item);
+		const store = tx.objectStore(storeName);
+		await store.clear(); // Clear existing data
+		console.log(`Cleared store: ${storeName}`);
+
+		const itemsToImport = importData[storeName];
+		if (itemsToImport && Array.isArray(itemsToImport)) {
+			if (storeName === StoreNames.SETTINGS) {
+				// Handle settings store: import from array of { key: string, value: any }
+				for (const item of itemsToImport) {
+					if (item && typeof item.key === 'string') {
+						// Use put(value, key) for settings
+						await store.put(item.value, item.key);
+					} else {
+						console.warn(`Skipping invalid settings item during import:`, item);
+					}
+				}
+			} else if (storeName === StoreNames.MATERIALS) {
+				for (const item of itemsToImport as Material[]) {
+					if (item) {
+						if (item.content && typeof item.content.data === 'string') {
+							try {
+								item.content.data = base64ToBlob(item.content.data);
+							} catch (e) {
+								console.warn(`Failed to decode content for material ${item.id}:`, e);
+								// if failed, then content is a regular string, so we'll keep it as is
+							}
+						}
+						await store.put(item);
+					} else {
+						console.warn(`Skipping invalid item in ${storeName} during import:`, item);
+					}
+				}
+			} else {
+				// Handle other stores
+				for (const item of itemsToImport) {
+					if (item) {
+						await store.put(item);
+					} else {
+						console.warn(`Skipping invalid item in ${storeName} during import:`, item);
+					}
 				}
 			}
-			console.log(`DB Import: Imported ${count} items into ${storeName}`);
-		} else {
-			console.warn(`DB Import: No data found for store ${storeName} in JSON.`);
+			console.log(`Imported ${itemsToImport.length} items into ${storeName}`);
 		}
 	}
 
 	await tx.done;
 	console.log("DB Import: Import process completed.");
-	// Dispatch a generic event or specific events if needed after import
-	document.dispatchEvent(new CustomEvent('dbChanged')); 
+	window.dispatchEvent(new Event('studypal-db-changed'));
 };

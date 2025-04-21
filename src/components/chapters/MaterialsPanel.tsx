@@ -1,35 +1,42 @@
-import React, { useState, useRef, useMemo } from 'react';
+import ArticleIcon from '@mui/icons-material/Article'; // Word
+import AudioFileIcon from '@mui/icons-material/AudioFile';
+import CodeIcon from '@mui/icons-material/Code'; // Jupyter
+import DeleteIcon from '@mui/icons-material/Delete';
+import DescriptionIcon from '@mui/icons-material/Description'; // Default/Text
+import FilePresentIcon from '@mui/icons-material/FilePresent'; // Generic File
+import ImageIcon from '@mui/icons-material/Image';
+import LinkIcon from '@mui/icons-material/Link';
+import MoreVertIcon from '@mui/icons-material/MoreVert'; // Import MoreVertIcon
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import VideoFileIcon from '@mui/icons-material/VideoFile';
+import { Masonry } from '@mui/lab'; // Import Masonry
 import {
-    Box,
-    Typography,
-    IconButton,
-    Tooltip,
-    CircularProgress,
     Alert,
-    Divider,
-    LinearProgress,
-    Paper,
-    styled,
     alpha,
-    Menu,
-    MenuItem,
+    Box, // Import Fade for transition
+    Button,
+    Card,
+    CardActionArea,
+    CardContent,
+    CircularProgress,
+    Divider,
+    IconButton,
+    LinearProgress,
     ListItemIcon,
     ListItemText,
-    Card,
-    CardContent,
-    CardActionArea,
-    Fade, // Import Fade for transition
-    Button
+    Menu,
+    MenuItem,
+    Paper,
+    Snackbar,
+    styled,
+    Typography
 } from '@mui/material';
-import { Masonry } from '@mui/lab'; // Import Masonry
-import UploadFileIcon from '@mui/icons-material/UploadFile';
-import DeleteIcon from '@mui/icons-material/Delete';
-import ImageIcon from '@mui/icons-material/Image';
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import LinkIcon from '@mui/icons-material/Link';
-import DescriptionIcon from '@mui/icons-material/Description';
-import MoreVertIcon from '@mui/icons-material/MoreVert'; // Import MoreVertIcon
-import { Material, Chapter, MaterialType } from '@type/db.types';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import { useSyncContext } from '@contexts/SyncContext';
+import { useMaterials } from '@hooks/useMaterials';
+import { Chapter, Material, MaterialType } from '@type/db.types';
 import { formatBytes } from '@utils/utils';
 
 // --- Styled Components ---
@@ -119,15 +126,36 @@ const CardBottomInfo = styled(Box)(({ theme }) => ({
     // background: alpha(theme.palette.background.paper, 0.5), // Optional subtle background
 }));
 
+// New styled component for content loading overlay
+const ContentLoadingOverlay = styled(Box)(({ theme }) => ({
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: alpha(theme.palette.background.paper, 0.7),
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2, // Above the card content but below menu
+    backdropFilter: 'blur(2px)',
+    borderRadius: theme.shape.borderRadius,
+}));
 
 // --- Helper Function ---
 
-const renderMaterialIcon = (type: MaterialType, sx?: object) => {
+export const renderMaterialIcon = (type: MaterialType, sx?: object): React.ReactElement => {
     const props = { sx: { fontSize: 40, mb: 1, color: 'primary.main', ...sx } };
     switch (type) {
         case MaterialType.IMAGE: return <ImageIcon {...props} />;
         case MaterialType.PDF: return <PictureAsPdfIcon {...props} />;
         case MaterialType.LINK: return <LinkIcon {...props} />;
+        case MaterialType.TEXT: return <DescriptionIcon {...props} />;
+        case MaterialType.WORD: return <ArticleIcon {...props} />;
+        case MaterialType.VIDEO: return <VideoFileIcon {...props} />;
+        case MaterialType.AUDIO: return <AudioFileIcon {...props} />;
+        case MaterialType.JUPYTER: return <CodeIcon {...props} />;
+        case MaterialType.FILE: return <FilePresentIcon {...props} />;
         default: return <DescriptionIcon {...props} />;
     }
 };
@@ -166,6 +194,25 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [menuMaterial, setMenuMaterial] = useState<Material | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null); // Ref for file input
+
+    // Track content loading state for each material
+    const [loadingContent, setLoadingContent] = useState<Record<string, boolean>>({});
+    // Track which materials have had their content prefetched
+    const [prefetchedContent, setPrefetchedContent] = useState<Record<string, boolean>>({});
+    // State for Snackbar
+    const [snackbar, setSnackbar] = useState<{ open: boolean; message: string }>({
+        open: false,
+        message: '',
+    });
+
+    // Get hooks for content fetching
+    const { getDriveFileContent, isInitialized: isSyncReady } = useSyncContext();
+    const { cacheMaterialContent } = useMaterials(selectedChapter?.id || '');
+
+    // Reset prefetched state when chapter changes
+    useEffect(() => {
+        setPrefetchedContent({});
+    }, [selectedChapter?.id]);
 
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, material: Material) => {
         event.stopPropagation(); // Prevent card click
@@ -207,7 +254,47 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         if (fileInputRef.current) {
             fileInputRef.current.value = ''; // Clear input
         }
-    };    // Type for display items (combines Material and uploading items)
+    };
+
+    const handleSnackbarClose = (event?: React.SyntheticEvent | Event, reason?: string) => {
+        if (reason === 'clickaway') {
+            return;
+        }
+        setSnackbar({ ...snackbar, open: false });
+    };
+
+    // Prepare material for viewing - ensure content is loaded before calling onViewMaterial
+    const handleViewMaterial = useCallback(async (material: Material) => {
+        // If material is already loaded or not synced to drive, open viewer immediately
+        if (material.content?.data || material.type === MaterialType.LINK || !material.driveId) {
+            onViewMaterial(material);
+            return;
+        }
+
+        // Otherwise, fetch contentData first
+        try {
+            setLoadingContent(prev => ({ ...prev, [material.id]: true }));
+            setSnackbar({ open: true, message: `Loading ${formatBytes(material.size || 0)} from Drive...` });
+
+            const updatedMaterial = await getDriveFileContent(material.driveId).then(blob => cacheMaterialContent(material.id, { mimeType: blob.type, data: blob }));
+            if (updatedMaterial && updatedMaterial.content?.data) {
+                onViewMaterial(updatedMaterial);
+            } else {
+                // If no updated material found (unlikely), use the original
+                onViewMaterial(material);
+            }
+        } catch (err) {
+            console.error(`Error loading content for ${material.id}:`, err);
+            // Open the viewer anyway - it can handle the error
+            onViewMaterial(material);
+        } finally {
+            setLoadingContent(prev => ({ ...prev, [material.id]: false }));
+            setPrefetchedContent(prev => ({ ...prev, [material.id]: true }));
+            setSnackbar({ ...snackbar, open: false });
+        }
+    }, [onViewMaterial, getDriveFileContent, cacheMaterialContent, isSyncReady, materials, formatBytes, snackbar]);
+
+    // Type for display items (combines Material and uploading items)
     type DisplayItem = Material | {
         id: string;
         name: string;
@@ -216,7 +303,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
         isUploading: true; // Literal true to help with type narrowing
         size: number;
     };
-    
+
     // Combine materials and uploading items for display
     const displayItems = useMemo<DisplayItem[]>(() => {
         const uploadingItems: DisplayItem[] = Object.entries(uploadProgress).map(([tempId, progress]) => ({
@@ -228,9 +315,9 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
             size: 0, // Placeholder size
         }));
         // Filter out materials that are currently being uploaded (based on progress state)
-        const existingMaterials = materials.filter(m => !(m.progress !== undefined && m.progress < 100));
+        // const existingMaterials = materials.filter(m => !(m.syncStatus != 'up_to_date'));
 
-        return [...existingMaterials, ...uploadingItems];
+        return [...materials, ...uploadingItems];
     }, [materials, uploadProgress]);
 
 
@@ -301,27 +388,34 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
                                             aria-controls={Boolean(anchorEl) ? `material-menu-${item.id}` : undefined}
                                             aria-haspopup="true"
                                             aria-expanded={Boolean(anchorEl) && menuMaterial?.id === item.id ? 'true' : undefined}
-                                            onClick={(e) => handleMenuOpen(e, item)} // No cast needed with proper type guard
+                                            onClick={(e) => handleMenuOpen(e, item)}
                                             size="small"
                                         >
                                             <MoreVertIcon fontSize="small" />
                                         </CardMenuButton>
-                                        <CardTopActionArea onClick={() => onViewMaterial(item as Material)}>
+                                        <CardTopActionArea onClick={() => handleViewMaterial(item)}>
                                             <CardContent sx={{ textAlign: 'center' }}>
                                                 {renderMaterialIcon(item.type)}
                                                 <Typography variant="body1" fontWeight={500} noWrap gutterBottom>
                                                     {item.name}
                                                 </Typography>
                                             </CardContent>
+
+                                            {/* Content loading overlay */}
+                                            {loadingContent[item.id] && (
+                                                <ContentLoadingOverlay>
+                                                    <CircularProgress size={36} />
+                                                </ContentLoadingOverlay>
+                                            )}
                                         </CardTopActionArea>
                                         <CardBottomInfo>
                                             <Typography variant="caption" color="text.secondary">
                                                 {formatBytes(item.size || 0)}
                                             </Typography>
                                             {item.progress !== undefined && item.progress < 100 && item.progress > 0 && (
-                                                 <Box sx={{ width: '40%' }}>
-                                                     <LinearProgress variant="determinate" value={item.progress} sx={{ height: 4, borderRadius: 2 }} />
-                                                 </Box>
+                                                <Box sx={{ width: '40%' }}>
+                                                    <LinearProgress variant="determinate" value={item.progress} sx={{ height: 4, borderRadius: 2 }} />
+                                                </Box>
                                             )}
                                         </CardBottomInfo>
                                     </>
@@ -368,6 +462,15 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
                     <ListItemText primary="Delete" primaryTypographyProps={{ color: 'error.main' }} />
                 </MenuItem>
             </Menu>
+
+            {/* Snackbar for loading message */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={3000} // Adjust as needed
+                onClose={handleSnackbarClose}
+                message={snackbar.message}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            />
         </MaterialsContainer>
     );
 };

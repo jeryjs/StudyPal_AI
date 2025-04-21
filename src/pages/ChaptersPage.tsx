@@ -1,35 +1,35 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router';
-import {
-    Box,
-    Typography,
-    Grid,
-    Button,
-    Alert,
-    Divider,
-    useTheme,
-    useMediaQuery,
-    styled,
-    alpha,
-    Snackbar,
-    Breadcrumbs,
-    Chip,
-} from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import {
+    Alert,
+    alpha,
+    Box,
+    Breadcrumbs,
+    Button,
+    Chip,
+    Divider,
+    Grid,
+    Snackbar,
+    styled,
+    Typography,
+    useMediaQuery,
+    useTheme,
+} from '@mui/material';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router';
 
 // Hooks
-import { useSubjects } from '@hooks/useSubjects';
 import { useChapters } from '@hooks/useChapters';
 import { useMaterials } from '@hooks/useMaterials';
+import { useSubjects } from '@hooks/useSubjects';
 // Import SyncContext if needed to trigger sync manually (optional)
 // import { useSyncContext } from '@contexts/SyncContext';
-import { Subject, Chapter, Material, MaterialType } from '@type/db.types';
+import { Chapter, Material, MaterialType, Subject } from '@type/db.types';
 
 // Components
+import ChapterDialog from '@components/chapters/ChapterDialog';
 import ChapterList from '@components/chapters/ChapterList';
 import MaterialsPanel from '@components/chapters/MaterialsPanel';
-import ChapterDialog from '@components/chapters/ChapterDialog';
 import MaterialViewerDialog from '@components/chapters/MaterialViewerDialog';
 import DeleteConfirmationDialog from '@components/shared/DeleteConfirmationDialog';
 
@@ -77,7 +77,7 @@ const ChaptersPage: React.FC = () => {
     const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
 
     // Snackbar
-    const [snackbar, setSnackbar] = useState<{open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning';}>({open: false,message: '',severity: 'info'});
+    const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning'; }>({ open: false, message: '', severity: 'info' });
 
     // Hooks
     const { getSubject } = useSubjects();
@@ -272,7 +272,7 @@ const ChaptersPage: React.FC = () => {
                 const newMaterial = await createMaterial(
                     file.name,
                     type,
-                    fileContent, // Pass ArrayBuffer directly
+                    { mimeType: file.type, data: new Blob([fileContent], { type: file.type }) },
                     undefined, // sourceRef
                     selectedChapter.id,
                     0, // Initial user progress is 0
@@ -426,6 +426,7 @@ const ChaptersPage: React.FC = () => {
                 open={materialViewerOpen}
                 onClose={handleCloseMaterialViewer}
                 material={selectedMaterial}
+                chapterId={selectedChapter?.id || ''}
             />
 
             {/* Snackbar for notifications */}

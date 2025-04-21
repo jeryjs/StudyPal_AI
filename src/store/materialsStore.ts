@@ -1,5 +1,5 @@
 import { DBStore } from '@db';
-import { Material, MaterialType, SyncStatus, StoreNames } from '@type/db.types';
+import { Material, MaterialType, StoreNames, SyncStatus } from '@type/db.types';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -40,17 +40,17 @@ class MaterialsStore extends DBStore<Material> {
    * @returns The created material
    */
   async createMaterial(
-    name: string,
-    chapterId: string,
-    type: MaterialType,
-    content?: string | ArrayBuffer,
-    sourceRef?: string,
-    progress: number = 0,
-    size?: number
+    name: Material['name'],
+    chapterId: Material['chapterId'],
+    type: Material['type'],
+    content?: Material['content'],
+    sourceRef?: Material['sourceRef'],
+    progress: Material['progress'] = 0,
+    size?: Material['size']
   ): Promise<Material> {
     const timestamp = Date.now();
     const id = uuidv4(); // Using UUID for material IDs
-    
+
     const newMaterial: Material = {
       id,
       name,
@@ -64,7 +64,7 @@ class MaterialsStore extends DBStore<Material> {
       lastModified: timestamp,
       syncStatus: SyncStatus.PENDING
     };
-    
+
     await this.put(newMaterial);
     return newMaterial;
   }
@@ -79,18 +79,48 @@ class MaterialsStore extends DBStore<Material> {
     if (!existingMaterial) {
       throw new Error(`Material not found: ${material.id}`);
     }
-    
+
     const updatedMaterial: Material = {
       ...existingMaterial,
       ...material,
       lastModified: Date.now(),
       // Ensure syncStatus is updated correctly, only set to PENDING if relevant fields changed
-      syncStatus: existingMaterial.syncStatus === SyncStatus.UP_TO_DATE && (material.name !== existingMaterial.name || material.content !== existingMaterial.content) 
-                  ? SyncStatus.PENDING 
-                  : existingMaterial.syncStatus
+      syncStatus: existingMaterial.syncStatus === SyncStatus.UP_TO_DATE && (material.name !== existingMaterial.name || material.content !== existingMaterial.content)
+        ? SyncStatus.PENDING
+        : existingMaterial.syncStatus
     };
-    
+
     await this.put(updatedMaterial); // Use put(value) instead of set(key, value)
+    return updatedMaterial;
+  }
+
+  /**
+   * Updates only the content field of a material for caching purposes.
+   * Does NOT update lastModified or syncStatus.
+   * @param id - The material ID
+   * @param content - The content (string or Blob) to cache
+   */
+  async cacheMaterialContent(id: string, content: Material['content']): Promise<Material> {
+    const existingMaterial = await this.get(id);
+    if (!existingMaterial) {
+      console.warn(`cacheMaterialContent: Material not found: ${id}`);
+      throw new Error(`Material not found: ${id}`);
+    }
+
+    // Create a minimal update object only changing content
+    const updatedMaterial: Material = {
+      ...existingMaterial,
+      content: content,
+      // Explicitly keep original lastModified and syncStatus
+      lastModified: existingMaterial.lastModified,
+      syncStatus: existingMaterial.syncStatus,
+    };
+
+    await this.put(updatedMaterial, undefined, false);
+    console.log(`Cached content for material: ${id}`);
+    // No need to dispatch standard change event if we don't want sync triggered
+    // Optionally dispatch a specific 'cacheUpdated' event if needed by UI
+    document.dispatchEvent(new CustomEvent('materialCacheUpdated', { detail: { id } }));
     return updatedMaterial;
   }
 
@@ -122,7 +152,7 @@ class MaterialsStore extends DBStore<Material> {
     if (!material) {
       throw new Error(`Material not found: ${materialId}`);
     }
-    
+
     // Update the material with the new chapter ID
     const updatedMaterial: Material = {
       ...material,
@@ -130,7 +160,7 @@ class MaterialsStore extends DBStore<Material> {
       lastModified: Date.now(),
       syncStatus: SyncStatus.PENDING
     };
-    
+
     await this.set(materialId, updatedMaterial);
     return updatedMaterial;
   }
@@ -144,7 +174,7 @@ class MaterialsStore extends DBStore<Material> {
   async updateProgress(materialId: string, progress: number): Promise<Material> {
     // Ensure progress is within valid range
     const validProgress = Math.max(0, Math.min(100, progress));
-    
+
     return this.updateMaterial({
       id: materialId,
       progress: validProgress
@@ -169,7 +199,7 @@ class MaterialsStore extends DBStore<Material> {
     const allMaterials = await this.getAll();
     return allMaterials.filter(material => material.syncStatus === SyncStatus.PENDING);
   }
-  
+
   /**
    * Get all materials for a subject by traversing through chapters
    * @param subjectId - The subject ID
@@ -179,27 +209,27 @@ class MaterialsStore extends DBStore<Material> {
   async getMaterialsBySubject(subjectId: string, chaptersStore: any): Promise<Material[]> {
     const chapters = await chaptersStore.getChaptersBySubject(subjectId);
     const chapterIds = chapters.map(chapter => chapter.id);
-    
+
     const allMaterials = await this.getAll();
     return allMaterials.filter(material => chapterIds.includes(material.chapterId));
   }
-  
+
   /**
    * Calculate completion statistics and total size for a subject
    * @param subjectId - The subject ID 
    * @param chaptersStore - The chapters store instance
    * @returns Object with total materials, average progress, and total size in bytes
    */
-  async getSubjectStats(subjectId: string, chaptersStore: any): Promise<{totalMaterials: number, averageProgress: number, totalSize: number}> {
+  async getSubjectStats(subjectId: string, chaptersStore: any): Promise<{ totalMaterials: number, averageProgress: number, totalSize: number }> {
     const materials = await this.getMaterialsBySubject(subjectId, chaptersStore);
-    
+
     if (materials.length === 0) {
       return { totalMaterials: 0, averageProgress: 0, totalSize: 0 };
     }
-    
+
     const totalProgress = materials.reduce((sum, material) => sum + (material.progress || 0), 0);
     const totalSize = materials.reduce((sum, material) => sum + (material.size || 0), 0); // Calculate total size
-    
+
     return {
       totalMaterials: materials.length,
       averageProgress: totalProgress / materials.length,

@@ -1,6 +1,6 @@
 import { DBSchema, IndexNames as IDBIndexNames, IDBPDatabase, IDBPTransaction, StoreNames as IDBStoreNames, openDB } from "idb";
 // Import the new SyncStatus enum
-import { base64ToBlob, blobToBase64 } from "@utils/utils";
+import { tryBase64ToBlob, blobToBase64 } from "@utils/utils";
 import { Chapter, Material, Subject, SyncQueueItem, SyncStatus } from "./types/db.types";
 
 /**
@@ -324,6 +324,7 @@ export const importDbFromJson = async (jsonString: string): Promise<void> => {
 
 	for (const storeName of storesToImport) {
 		const store = tx.objectStore(storeName);
+		const oldData = await store.getAll(); // Get existing data for logging
 		await store.clear(); // Clear existing data
 		console.log(`Cleared store: ${storeName}`);
 
@@ -344,10 +345,16 @@ export const importDbFromJson = async (jsonString: string): Promise<void> => {
 					if (item) {
 						if (item.content && typeof item.content.data === 'string') {
 							try {
-								item.content.data = base64ToBlob(item.content.data);
+								item.content.data = tryBase64ToBlob(item.content.data);
 							} catch (e) {
 								console.warn(`Failed to decode content for material ${item.id}:`, e);
-								// if failed, then content is a regular string, so we'll keep it as is
+							}
+						} else if (item.content && item.content.data === undefined) {
+							// Try to get the content from the existing database
+							const oldMaterial = oldData.find(m => m.id === item.id);
+							if (oldMaterial && oldMaterial.content) {
+								item.content = oldMaterial.content;
+								console.log(`Used existing content for material ${item.id}`);
 							}
 						}
 						await store.put(item);

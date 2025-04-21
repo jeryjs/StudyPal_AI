@@ -96,16 +96,26 @@ export const blobToBase64 = (blob: Blob): Promise<string> => {
     });
 };
 
-export const base64ToBlob = (base64: string): Blob => {
-    const byteCharacters = atob(base64.split(',')[1]); // Remove the prefix before decoding
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
+/**
+ * Converts a Base64 string to a Blob.
+ * if the string is not a valid Base64 string, it returns a Blob with the string as text.
+ *
+ * @param {string} data - The Base64 string to convert.
+ * @returns {Blob} The Blob representation of the Base64 string.
+ */
+export const tryBase64ToBlob = (data: string): Blob => {
+    if (/^data:([a-zA-Z0-9\/+]+);base64,/.test(data)) {
+        const byteCharacters = atob(data.split(',')[1]); // Remove the prefix before decoding
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        return new Blob([byteArray], { type: data.split(',')[0].split(':')[1].split(';')[0] });
     }
-    const byteArray = new Uint8Array(byteNumbers);
-    return new Blob([byteArray], { type: base64.split(',')[0].split(':')[1].split(';')[0] });
+    
+    return new Blob([data], { type: 'text/plain' });
 }
-
 
 /**
  * Converts an ArrayBuffer to a Base64 string.

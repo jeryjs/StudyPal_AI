@@ -10,6 +10,7 @@ import {
 import React, { useEffect, useMemo, useState } from 'react';
 
 import { Material, MaterialType } from '@type/db.types';
+import { tryBase64ToBlob } from '@utils/utils';
 
 // --- Sub-Components ---
 
@@ -160,19 +161,8 @@ const MaterialViewerDialog: React.FC<MaterialViewerDialogProps> = ({ open, mater
 
         const localData = material.content?.data;
 
-        // If the content is a base64 string, first decode it and then convert it to a Blob
-        if (typeof localData === 'string' && /^data:([a-zA-Z0-9\/+]+);base64,/.test(localData)) {
-            const byteString = atob(localData.split(',')[1]);
-            const ab = new ArrayBuffer(byteString.length);
-            const ia = new Uint8Array(ab);
-            for (let i = 0; i < byteString.length; i++) {
-                ia[i] = byteString.charCodeAt(i);
-            }
-            return setContentBlob(new Blob([ab], { type: material.content?.mimeType || 'application/octet-stream' }));
-        }
-
-        // If the content is a regular string, convert it to a Blob
-        if (typeof localData === 'string') return setContentBlob(new Blob([localData], { type: material.content?.mimeType || 'text/plain' }));
+        // If the content is a string, try decode & convert it to a Blob
+        if (typeof localData === 'string') return setContentBlob(tryBase64ToBlob(localData));
 
         // If the content is already a Blob, just set it directly
         return setContentBlob(localData as Blob);

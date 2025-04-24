@@ -53,7 +53,7 @@ const DeleteConfirmationDialog: React.FC<DeleteConfirmationProps> = ({ open, onC
             onClose(); // Close dialog on success
         } catch (err) {
             console.error(`Error deleting ${itemType}:`, err);
-            setError(err instanceof Error ? err.message : `Failed to delete ${itemType}.`);
+            setError(err instanceof Error ? err.message : err instanceof Object ? JSON.stringify(err) : `Failed to delete ${itemType}.`);
             setIsDeleting(false); // Keep dialog open on error
         }
     };

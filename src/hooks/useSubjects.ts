@@ -113,7 +113,7 @@ export function useSubjects() {
 
     } catch (err) {
       console.error('Error deleting subject:', err);
-      throw err instanceof Error ? err : new Error('Failed to delete subject');
+      throw err;
     }
   }, []);
 

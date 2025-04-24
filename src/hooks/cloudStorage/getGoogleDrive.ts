@@ -261,7 +261,7 @@ const singleton = {
             return true;
         } catch (err) {
             console.error(`deleteFileItem: Error deleting file with ID: ${fileId}`, err);
-            throw new Error(`Failed to delete file with ID: ${fileId}`);
+            throw err;
         }
     },
 
@@ -387,7 +387,7 @@ const singleton = {
                 throw new Error('No response received from Google Drive API.');
             }
             return response;
-        } catch (err: any) {
+        } catch (err: Error | any) {
             console.error('Google Drive API Action Failed:', err);
             // Check for specific gapi error structures or status codes
             const statusCode = err?.status ?? err?.result?.error?.code;
@@ -395,7 +395,7 @@ const singleton = {
                 await singleton.signOut();
                 throw new Error('Authentication failed. Please sign in again.');
             }
-            throw err instanceof Error ? err : new Error(err?.message || 'Google Drive API request failed');
+            throw err;
         }
     }
 };

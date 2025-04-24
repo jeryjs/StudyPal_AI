@@ -112,7 +112,7 @@ export function useChapters(subjectId?: string) {
       setChapters(prevChapters => prevChapters.filter(c => c.id !== chapterId));
     } catch (err) {
       console.error('Error deleting chapter:', err);
-      throw err instanceof Error ? err : new Error('Failed to delete chapter');
+      throw err;
     }
   }, [cloud]);
 

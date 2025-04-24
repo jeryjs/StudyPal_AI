@@ -108,9 +108,10 @@ export function useMaterials(chapterId?: string) {
       await cloud.deleteFile((await getMaterial(materialId)).driveId);
       await materialsStore.deleteMaterial(materialId);
 
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error deleting material:', err);
-      throw err instanceof Error ? err : new Error('Failed to delete material');
+      if (err.status === 404) return await materialsStore.deleteMaterial(materialId); // Ignore 404 errors for missing files
+      throw err;
     }
   }, []);
 

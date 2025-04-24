@@ -179,7 +179,7 @@ const ChaptersPage: React.FC = () => {
         } catch (error) {
             console.error(`Error deleting ${itemToDelete.type}:`, error);
             // Let the DeleteConfirmationDialog display the error, just re-throw it
-            throw new Error(`Failed to delete ${itemToDelete.type}: ${error instanceof Error ? error.message : String(error)}`);
+            throw error;
         }
     };
 

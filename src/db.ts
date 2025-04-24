@@ -1,7 +1,7 @@
 import { DBSchema, IndexNames as IDBIndexNames, IDBPDatabase, IDBPTransaction, StoreNames as IDBStoreNames, openDB } from "idb";
 // Import the new SyncStatus enum
 import { blobToBase64, tryBase64ToBlob } from "@utils/utils";
-import { Chapter, Material, Subject, SyncStatus } from "@type/db.types";
+import { StoreNames, Chapter, Material, Subject, SyncStatus } from "@type/db.types";
 import { CopilotItem } from "@type/copilot.types";
 
 /**
@@ -14,16 +14,6 @@ export const DB_NAME = "StudyPalDB";
  */
 export const DB_VERSION = 1;
 
-/**
- * Names of object stores in the database.
- */
-export enum StoreNames {
-	SETTINGS = "settings",
-	SUBJECTS = "subjects",
-	CHAPTERS = "chapters",
-	MATERIALS = "materials",
-	COPILOT = "copilot",
-}
 
 /**
  * The base database schema for StudyPal app.

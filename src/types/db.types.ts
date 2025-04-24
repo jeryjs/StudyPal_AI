@@ -10,7 +10,7 @@ export enum StoreNames {
 	SUBJECTS = "subjects",
 	CHAPTERS = "chapters",
 	MATERIALS = "materials",
-	SYNC_QUEUE = "syncQueue"
+	COPILOT = "copilot",
 }
 
 /**
@@ -83,16 +83,4 @@ export interface Material extends SyncableItem {
 	content?: { mimeType: string, data: string | Blob }; // string for text, Blob for cached binary files (PDF, images, etc.)
 	sourceRef?: string;     // Optional reference (URL or note) for where the material came from
 	progress?: number;      // material completion progress (0-100% read or covered, etc)
-}
-
-/**
- * SyncQueueItem interface to track items waiting to be synced
- */
-export interface SyncQueueItem {
-	id: string;               // Unique ID for the queue item
-	storeType: StoreNames;    // Store type (SUBJECTS, CHAPTERS, MATERIALS)
-	itemId: string;           // ID of the item to sync
-	action: 'create' | 'update' | 'delete'; // Action to perform
-	timestamp: number;        // When the item was queued
-	retryCount: number;       // Number of retry attempts
 }

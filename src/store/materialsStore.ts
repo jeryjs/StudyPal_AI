@@ -62,7 +62,7 @@ class MaterialsStore extends DBStore<Material> {
       size,
       createdAt: timestamp,
       lastModified: timestamp,
-      syncStatus: SyncStatus.PENDING
+      syncStatus: SyncStatus.UPLOAD_PENDING
     };
 
     await this.put(newMaterial);
@@ -74,7 +74,7 @@ class MaterialsStore extends DBStore<Material> {
    * @param material - The updated material data
    * @returns The updated material
    */
-  async updateMaterial(material: Partial<Material> & { id: string }): Promise<Material> {
+  async updateMaterial(material: Partial<Material> & { id: string }, dispatchEvent = true): Promise<Material> {
     const existingMaterial = await this.get(material.id);
     if (!existingMaterial) {
       throw new Error(`Material not found: ${material.id}`);
@@ -83,14 +83,10 @@ class MaterialsStore extends DBStore<Material> {
     const updatedMaterial: Material = {
       ...existingMaterial,
       ...material,
-      lastModified: Date.now(),
-      // Ensure syncStatus is updated correctly, only set to PENDING if relevant fields changed
-      syncStatus: existingMaterial.syncStatus === SyncStatus.UP_TO_DATE && (material.name !== existingMaterial.name || material.content !== existingMaterial.content)
-        ? SyncStatus.PENDING
-        : existingMaterial.syncStatus
+      lastModified: Date.now()
     };
 
-    await this.put(updatedMaterial); // Use put(value) instead of set(key, value)
+    await this.put(updatedMaterial, undefined, dispatchEvent); // Use put(value) instead of set(key, value)
     return updatedMaterial;
   }
 
@@ -111,9 +107,9 @@ class MaterialsStore extends DBStore<Material> {
     const updatedMaterial: Material = {
       ...existingMaterial,
       content: content,
-      // Explicitly keep original lastModified and syncStatus
+      // Explicitly keep original lastModified
       lastModified: existingMaterial.lastModified,
-      syncStatus: existingMaterial.syncStatus,
+      syncStatus: SyncStatus.UP_TO_DATE
     };
 
     await this.put(updatedMaterial, undefined, false);
@@ -162,7 +158,7 @@ class MaterialsStore extends DBStore<Material> {
       ...material,
       chapterId: newChapterId,
       lastModified: Date.now(),
-      syncStatus: SyncStatus.PENDING
+      syncStatus: SyncStatus.UPLOAD_PENDING
     };
 
     await this.set(materialId, updatedMaterial);
@@ -201,7 +197,7 @@ class MaterialsStore extends DBStore<Material> {
    */
   async getPendingMaterials(): Promise<Material[]> {
     const allMaterials = await this.getAll();
-    return allMaterials.filter(material => material.syncStatus === SyncStatus.PENDING);
+    return allMaterials.filter(material => material.syncStatus === SyncStatus.UPLOAD_PENDING);
   }
 
   /**

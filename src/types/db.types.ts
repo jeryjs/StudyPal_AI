@@ -24,7 +24,9 @@ export enum SyncStatus {
 	UP_TO_DATE = "up_to_date",	// UP_TO_DATE for synced items
 	CONFLICT = "conflict",		// CONFLICT for sync conflicts
 	ERROR = "error",			// ERROR for sync errors
-	PENDING = "pending",		// PENDING for local-only changes before first sync
+	UPLOAD_PENDING = "upload_pending",		// PENDING for items waiting to be synced
+	DOWNLOAD_PENDING = "download_pending",	// PENDING for items waiting to be downloaded
+	NOTAUTHENTICATED = "not_authenticated",		// Status for not authenticated
 }
 
 /**

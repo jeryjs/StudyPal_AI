@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Chapter } from '@type/db.types';
+import useCloudStorage from '@hooks/useCloudStorage';
 import { chaptersStore } from '@store/chaptersStore';
 import { materialsStore } from '@store/materialsStore';
-import { useGoogleDriveSync } from './useGoogleDriveSync';
+import { Chapter } from '@type/db.types';
+import { useCallback, useEffect, useState } from 'react';
 
 /**
  * Hook for managing chapters in the database
@@ -12,32 +12,27 @@ export function useChapters(subjectId?: string) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const { deleteFileItem } = useGoogleDriveSync({
-      onSyncStatusChange: () => {},
-      onConflictDetected: () => {},
-      onSyncComplete: () => {},
-      onError: () => {},
-    });
+  const cloud = useCloudStorage();
 
   // Fetch chapters for a specific subject or all chapters
   const fetchChapters = useCallback(async (targetSubjectId?: string) => {
     setLoading(true);
     try {
       const subjectToQuery = targetSubjectId || subjectId;
-      
+
       let chaptersList: Chapter[];
-      
+
       if (subjectToQuery) {
         // Get chapters for specific subject
         chaptersList = await chaptersStore.getChaptersBySubject(subjectToQuery);
-        
+
         // Sort by chapter number
         chaptersList.sort((a, b) => a.number - b.number);
       } else {
         // Get all chapters if no subject ID provided
         chaptersList = await chaptersStore.getAllChapters();
       }
-      
+
       setChapters(chaptersList);
       setError(null);
     } catch (err) {
@@ -57,19 +52,19 @@ export function useChapters(subjectId?: string) {
   const createChapter = useCallback(async (name: string, targetSubjectId?: string): Promise<Chapter> => {
     try {
       const subjectToUse = targetSubjectId || subjectId;
-      
+
       if (!subjectToUse) {
         throw new Error('Subject ID is required to create a chapter');
       }
-      
+
       // Create the new chapter
       const newChapter = await chaptersStore.createChapter(name, subjectToUse);
-      
+
       // Update local state if this belongs to our current subject
       if (subjectToUse === subjectId) {
         setChapters(prevChapters => [...prevChapters, newChapter]);
       }
-      
+
       return newChapter;
     } catch (err) {
       console.error('Error creating chapter:', err);
@@ -82,14 +77,14 @@ export function useChapters(subjectId?: string) {
     try {
       // Update the chapter
       const mergedChapter = await chaptersStore.updateChapter(updatedChapter);
-      
+
       // Update local state if this belongs to our current subject
       if (mergedChapter.subjectId === subjectId) {
-        setChapters(prevChapters => 
+        setChapters(prevChapters =>
           prevChapters.map(c => c.id === mergedChapter.id ? mergedChapter : c)
         );
       }
-      
+
       return mergedChapter;
     } catch (err) {
       console.error('Error updating chapter:', err);
@@ -102,24 +97,24 @@ export function useChapters(subjectId?: string) {
     try {
       // First, get all materials in this chapter and delete them
       const chapterMaterials = await materialsStore.getMaterialsByChapter(chapterId);
-      
+
       // Delete all materials in the chapter
       for (const material of chapterMaterials) {
-        material.driveId && await deleteFileItem(material.driveId);
+        await cloud.deleteFile(material.driveId);
         await materialsStore.deleteMaterial(material.id);
       }
-      
+
       // Delete chapter
-      getChapter(chapterId).then(c => deleteFileItem(c.driveId));
+      await cloud.deleteFolder((await getChapter(chapterId)).driveId);
       await chaptersStore.deleteChapter(chapterId);
-      
+
       // Remove from local state
       setChapters(prevChapters => prevChapters.filter(c => c.id !== chapterId));
     } catch (err) {
       console.error('Error deleting chapter:', err);
       throw err instanceof Error ? err : new Error('Failed to delete chapter');
     }
-  }, []);
+  }, [cloud]);
 
   // Get a chapter by ID
   const getChapter = useCallback(async (chapterId: string): Promise<Chapter> => {
@@ -138,17 +133,17 @@ export function useChapters(subjectId?: string) {
     try {
       // Move the chapter
       const updatedChapter = await chaptersStore.moveChapter(chapterId, newSubjectId);
-      
+
       // Update local state - remove from our list if it's moved to a different subject
       if (subjectId && subjectId !== newSubjectId) {
         setChapters(prevChapters => prevChapters.filter(c => c.id !== chapterId));
       } else if (subjectId && subjectId === newSubjectId) {
         // Update the chapter in our list if it's moved to our current subject
-        setChapters(prevChapters => 
+        setChapters(prevChapters =>
           prevChapters.map(c => c.id === updatedChapter.id ? updatedChapter : c)
         );
       }
-      
+
       return updatedChapter;
     } catch (err) {
       console.error('Error moving chapter:', err);
@@ -162,10 +157,10 @@ export function useChapters(subjectId?: string) {
       if (!subjectId) {
         throw new Error('Subject ID is required to reorder chapters');
       }
-      
+
       // Update the chapter ordering
       const updatedChapters = await chaptersStore.reorderChapters(subjectId, newOrdering);
-      
+
       // Update local state with the new ordering
       setChapters(updatedChapters);
     } catch (err) {
@@ -178,11 +173,11 @@ export function useChapters(subjectId?: string) {
   const getChapterProgress = useCallback(async (chapterId: string): Promise<number> => {
     try {
       const materials = await materialsStore.getMaterialsByChapter(chapterId);
-      
+
       if (materials.length === 0) {
         return 0;
       }
-      
+
       const totalProgress = materials.reduce((sum, material) => sum + (material.progress || 0), 0);
       return totalProgress / materials.length;
     } catch (err) {

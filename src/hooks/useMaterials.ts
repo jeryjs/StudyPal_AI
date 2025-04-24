@@ -1,7 +1,7 @@
+import useCloudStorage from '@hooks/useCloudStorage';
 import { materialsStore } from '@store/materialsStore';
-import { Material, MaterialType } from '@type/db.types';
+import { Material, MaterialType, SyncStatus } from '@type/db.types';
 import { useCallback, useEffect, useState } from 'react';
-import { useGoogleDriveSync } from './useGoogleDriveSync';
 
 /**
  * Hook for managing materials in the database
@@ -11,13 +11,8 @@ export function useMaterials(chapterId?: string) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
-  const { deleteFileItem } = useGoogleDriveSync({
-      onSyncStatusChange: () => {},
-      onConflictDetected: () => {},
-      onSyncComplete: () => {},
-      onError: () => {},
-    });
-    
+  const cloud = useCloudStorage();
+
   // Fetch materials for a specific chapter or all materials
   const fetchMaterials = useCallback(async (targetChapterId?: string) => {
     setLoading(true);
@@ -44,10 +39,16 @@ export function useMaterials(chapterId?: string) {
     }
   }, [chapterId]);
 
-  // Load materials on mount or when chapterId changes
+  // Load materials on mount or when chapterId/materials changes
   useEffect(() => {
     fetchMaterials();
-  }, [fetchMaterials, chapterId]);
+    const handleDbChange = () => {
+      console.log('Database changed, refetching materials...');
+      fetchMaterials();
+    };
+    window.addEventListener('studypal-db-changed', handleDbChange);
+    return () => window.removeEventListener('studypal-db-changed', handleDbChange);
+  }, [chapterId, fetchMaterials]);
 
   // Create a new material
   const createMaterial = useCallback(async (
@@ -69,15 +70,10 @@ export function useMaterials(chapterId?: string) {
 
       // Create the material
       const newMaterial = await materialsStore.createMaterial(
-        name,
-        chapterToUse,
-        type,
-        content,
-        sourceRef,
-        progress,
-        size,
+        name, chapterToUse, type, content,
+        sourceRef, progress, size,
       );
-      setMaterials(prev => [...prev, newMaterial]);
+
       return newMaterial;
     } catch (err: any) {
       setError(err);
@@ -90,15 +86,13 @@ export function useMaterials(chapterId?: string) {
   // Update an existing material
   const updateMaterial = useCallback(async (updatedMaterial: Partial<Material> & { id: string }): Promise<Material> => {
     try {
-      // Update the material
-      const mergedMaterial = await materialsStore.updateMaterial(updatedMaterial);
+      const existingMaterial = await materialsStore.getMaterialById(updatedMaterial.id);
+      if (!existingMaterial) throw new Error(`Material not found: ${updatedMaterial.id}`);
 
-      // Update local state if this belongs to our current chapter
-      if (mergedMaterial.chapterId === chapterId) {
-        setMaterials(prevMaterials =>
-          prevMaterials.map(m => m.id === mergedMaterial.id ? mergedMaterial : m)
-        );
-      }
+      updatedMaterial.syncStatus = existingMaterial.syncStatus === SyncStatus.UP_TO_DATE && (updatedMaterial.name !== existingMaterial.name || updatedMaterial.content !== existingMaterial.content)
+        ? SyncStatus.UPLOAD_PENDING
+        : existingMaterial.syncStatus;
+      const mergedMaterial = await materialsStore.updateMaterial(updatedMaterial);
 
       return mergedMaterial;
     } catch (err) {
@@ -111,11 +105,9 @@ export function useMaterials(chapterId?: string) {
   const deleteMaterial = useCallback(async (materialId: string): Promise<void> => {
     try {
       // Delete the material
-      await getMaterial(materialId).then(m => deleteFileItem(m.driveId));
+      await cloud.deleteFile((await getMaterial(materialId)).driveId);
       await materialsStore.deleteMaterial(materialId);
 
-      // Remove from local state
-      setMaterials(prevMaterials => prevMaterials.filter(m => m.id !== materialId));
     } catch (err) {
       console.error('Error deleting material:', err);
       throw err instanceof Error ? err : new Error('Failed to delete material');
@@ -137,16 +129,6 @@ export function useMaterials(chapterId?: string) {
     try {
       // Move the material
       const updatedMaterial = await materialsStore.moveMaterial(materialId, newChapterId);
-
-      // Update local state - remove from our list if it's moved to a different chapter
-      if (chapterId && chapterId !== newChapterId) {
-        setMaterials(prevMaterials => prevMaterials.filter(m => m.id !== materialId));
-      } else if (chapterId && chapterId === newChapterId) {
-        // Update the material in our list if it's moved to our current chapter
-        setMaterials(prevMaterials =>
-          prevMaterials.map(m => m.id === updatedMaterial.id ? updatedMaterial : m)
-        );
-      }
 
       return updatedMaterial;
     } catch (err) {
@@ -171,13 +153,6 @@ export function useMaterials(chapterId?: string) {
       // Update the material progress
       const updatedMaterial = await materialsStore.updateProgress(materialId, progress);
 
-      // Update local state if this belongs to our current chapter
-      if (updatedMaterial.chapterId === chapterId) {
-        setMaterials(prevMaterials =>
-          prevMaterials.map(m => m.id === updatedMaterial.id ? updatedMaterial : m)
-        );
-      }
-
       return updatedMaterial;
     } catch (err) {
       console.error('Error updating material progress:', err);
@@ -195,18 +170,31 @@ export function useMaterials(chapterId?: string) {
     }
   }, []);
 
-  // --- Caching Function ---
-  const cacheMaterialContent = useCallback(async (id: string, content: Material['content']): Promise<Material> => {
-    try {
-      const updatedMaterial = await materialsStore.cacheMaterialContent(id, content);
-      setMaterials(prev => prev.map(m => m.id === id ? { ...m, content: updatedMaterial.content } : m));
-      return updatedMaterial;
-    } catch (err: any) {
-      console.error(`Error caching content for material ${id}:`, err);
-      throw err instanceof Error ? err : new Error('Failed to cache material content');
-    }
-  }, [setMaterials]);
+  // Get the content of a material from cloud storage if not cached
+  const getMaterialContent = useCallback(async (materialId: string): Promise<Material['content'] | null> => {
+    const material = await materialsStore.getMaterialById(materialId);
+    if (!material) throw new Error(`Material not found: ${materialId}`);
 
+    // Check if content is already cached or is not synced to cloud
+    if (material.content?.data || material.type === MaterialType.LINK || !material.driveId) {
+      return material.content;
+    }
+
+    // Fetch content from cloud storage if not cached
+    if (material.content && !material.content.data) {
+      // Retrieve the content from cloud storage
+      const blob = await cloud.downloadFile(material.driveId);
+      const content = { mimeType: blob.type, data: blob }
+
+      // update the material in db with the new content
+      const updatedMaterial = await materialsStore.cacheMaterialContent(materialId, content);
+      setMaterials(prev => prev.map(m => m.id === updatedMaterial.id ? updatedMaterial : m));
+
+      return content;
+    }
+
+    return material.content;
+  }, [materials, setMaterials]);
 
   return {
     materials,
@@ -221,6 +209,6 @@ export function useMaterials(chapterId?: string) {
     getPendingMaterials,
     updateProgress,
     getMaterialsByType,
-    cacheMaterialContent
+    getMaterialContent,
   };
 }

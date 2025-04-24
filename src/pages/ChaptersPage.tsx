@@ -53,15 +53,6 @@ const FloatingActionButton = styled(Button)(({ theme }) => ({
     }
 }));
 
-// Styled component for the drawer header
-const DrawerHeader = styled(Box)(({ theme }) => ({
-    display: 'flex',
-    alignItems: 'center',
-    padding: theme.spacing(1, 2),
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    minHeight: '64px',
-}));
-
 // --- Main Page Component ---
 
 const ChaptersPage: React.FC = () => {
@@ -291,7 +282,7 @@ const ChaptersPage: React.FC = () => {
                 }, 1500); // Delay to allow user to see completion/error
             }
         }
-    }, [selectedChapter, createMaterial, setSnackbar /*, backupDatabaseToDrive */]); // Add backupDatabaseToDrive if using manual trigger
+    }, [selectedChapter, createMaterial, setSnackbar]);
 
     // --- Render ---
     return (
@@ -358,28 +349,7 @@ const ChaptersPage: React.FC = () => {
                     />
                 </Grid>
 
-                {/* Right Column - Materials - Only visible on desktop */}
-                {!isMobile && (
-                    <Grid size={{ md: 8, lg: 9 }} sx={{ height: '100%', overflowY: 'auto' }}>
-                        <MaterialsPanel
-                            selectedChapter={selectedChapter}
-                            onViewMaterial={handleViewMaterial}
-                            onDeleteMaterial={(material) => handleOpenDeleteDialog(material.id, material.name, 'material')}
-                            onDrop={handleDrop}
-                            onDragOver={handleDragOver}
-                            onDragEnter={handleDragEnter}
-                            onDragLeave={handleDragLeave}
-                            isDraggingOver={isDraggingOver}
-                            loading={materialsLoading && !!selectedChapter}
-                            error={materialsError}
-                            uploadProgress={uploadProgress}
-                            key={selectedChapter?.id || 'no-chapter'}
-                        />
-                    </Grid>
-                )}
-
-                {/* On mobile, MaterialsPanel will handle its own Drawer */}
-                {isMobile && (
+                <Grid size={{ md: 8, lg: 9 }} sx={{ height: '100%', overflowY: 'auto' }}>
                     <MaterialsPanel
                         key={selectedChapter?.id || 'no-chapter'}
                         selectedChapter={selectedChapter}
@@ -395,7 +365,7 @@ const ChaptersPage: React.FC = () => {
                         uploadProgress={uploadProgress}
                         onClose={() => setSelectedChapter(null)}
                     />
-                )}
+                </Grid>
             </Grid>
 
             {/* Floating Action Button for Mobile */}

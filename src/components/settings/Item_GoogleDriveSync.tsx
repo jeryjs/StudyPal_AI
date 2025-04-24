@@ -47,20 +47,23 @@ const syncStatusMap: { [key in SyncStatus]: { text: string; color: string; icon:
     up_to_date: { text: 'Up to date', color: 'success', icon: <CheckCircleIcon fontSize="small" /> },
     conflict: { text: 'Conflict detected', color: 'error', icon: <SyncProblemIcon fontSize="small" /> },
     error: { text: 'Sync Error', color: 'error', icon: <ErrorIcon fontSize="small" /> },
-    pending: { text: 'Not Synced to Drive', color: 'default', icon: <CloudSyncIcon fontSize="small" /> }
+    upload_pending: { text: 'Not Synced to Drive', color: 'default', icon: <CloudSyncIcon fontSize="small" /> },
+    download_pending: { text: 'Not Synced from Drive', color: 'default', icon: <CloudSyncIcon fontSize="small" /> },
+    not_authenticated: { text: 'Not Authenticated', color: 'error', icon: <CloudOffIcon fontSize="small" /> },
 };
 
 const GoogleDriveSync: React.FC = () => {
     // Use the context hook for all sync-related state and operations
     const {
-        isGapiLoaded,
         isAuthenticated,
         signIn,
         signOut,
         syncStatus,
         error,
         lastSuccessfulSync,
-        isInitialized
+        backupDatabaseToDrive,
+        restoreDatabaseFromDrive,
+        isInitialized,
     } = useSyncContext();
 
     // Local UI state for the settings component
@@ -187,6 +190,29 @@ const GoogleDriveSync: React.FC = () => {
         setFileToImport(null);
     };
 
+    const handleForceSyncFromCloud = async () => {
+        clearMessages();
+        try {
+            await restoreDatabaseFromDrive();
+            setShowSuccessMessage('Database restored from Drive successfully! Reloading app...');
+            setTimeout(() => window.location.reload(), 1500);
+        } catch (err: any) {
+            console.error("Force sync from cloud failed:", err);
+            setLocalError(err.message || 'Failed to restore database from Drive.');
+        }
+    };
+
+    const handleForceSyncToCloud = async () => {
+        clearMessages();
+        try {
+            await backupDatabaseToDrive();
+            setShowSuccessMessage('Database backed up to Drive successfully!');
+        } catch (err: any) {
+            console.error("Force sync to cloud failed:", err);
+            setLocalError(err.message || 'Failed to back up database to Drive.');
+        }
+    }
+
     return (
         <Box sx={{
             display: 'flex',
@@ -294,6 +320,24 @@ const GoogleDriveSync: React.FC = () => {
                             disabled={syncStatus === 'syncing_up' || syncStatus === 'syncing_down'}
                         >
                             Import Data
+                        </Button>
+                        <Button
+                            variant="outlined"
+                            color="secondary"
+                            startIcon={<DownloadIcon />}
+                            onClick={handleForceSyncFromCloud}
+                            disabled={syncStatus === 'syncing_up' || syncStatus === 'syncing_down'}
+                        >
+                            Force Sync from Cloud
+                        </Button>
+                        <Button
+                            variant="outlined"
+                            color="secondary"
+                            startIcon={<UploadIcon />}
+                            onClick={handleForceSyncToCloud}
+                            disabled={syncStatus === 'syncing_up' || syncStatus === 'syncing_down'}
+                        >
+                            Force Sync to Cloud
                         </Button>
                         {/* Hidden File Input */}
                         <Input

@@ -1,5 +1,5 @@
 import { DBStore } from '@db';
-import { Chapter, SyncStatus, StoreNames } from '@type/db.types';
+import { Chapter, StoreNames, SyncStatus } from '@type/db.types';
 import slugify from '@utils/Slugify';
 
 /**
@@ -39,14 +39,14 @@ class ChaptersStore extends DBStore<Chapter> {
   async createChapter(name: string, subjectId: string, number?: number): Promise<Chapter> {
     const timestamp = Date.now();
     const id = slugify(`${name}-${number}`, true); // Using slugify with unique=true
-    
+
     // If number isn't provided, calculate the next number by counting existing chapters
     let chapterNumber = number;
     if (chapterNumber === undefined) {
       const existingChapters = await this.getChaptersBySubject(subjectId);
       chapterNumber = existingChapters.length + 1;
     }
-    
+
     const newChapter: Chapter = {
       id,
       name,
@@ -54,9 +54,9 @@ class ChaptersStore extends DBStore<Chapter> {
       number: chapterNumber,
       createdAt: timestamp,
       lastModified: timestamp,
-      syncStatus: SyncStatus.PENDING
+      syncStatus: SyncStatus.UPLOAD_PENDING
     };
-    
+
     await this.put(newChapter); // Use put(value) instead of set(key, value)
     return newChapter;
   }
@@ -71,14 +71,14 @@ class ChaptersStore extends DBStore<Chapter> {
     if (!existingChapter) {
       throw new Error(`Chapter not found: ${chapter.id}`);
     }
-    
+
     const updatedChapter: Chapter = {
       ...existingChapter,
       ...chapter,
       lastModified: Date.now(),
-      syncStatus: SyncStatus.PENDING
+      syncStatus: SyncStatus.UPLOAD_PENDING
     };
-    
+
     await this.put(updatedChapter); // Use put(value) instead of set(key, value)
     return updatedChapter;
   }
@@ -111,15 +111,15 @@ class ChaptersStore extends DBStore<Chapter> {
     if (!chapter) {
       throw new Error(`Chapter not found: ${chapterId}`);
     }
-    
+
     // Update the chapter with the new subject ID
     const updatedChapter: Chapter = {
       ...chapter,
       subjectId: newSubjectId,
       lastModified: Date.now(),
-      syncStatus: SyncStatus.PENDING
+      syncStatus: SyncStatus.UPLOAD_PENDING
     };
-    
+
     await this.set(chapterId, updatedChapter);
     return updatedChapter;
   }
@@ -132,27 +132,27 @@ class ChaptersStore extends DBStore<Chapter> {
    */
   async reorderChapters(subjectId: string, newOrdering: string[]): Promise<Chapter[]> {
     const chapters = await this.getChaptersBySubject(subjectId);
-    
+
     // Create map of chapters by ID for quick lookup
     const chaptersMap = new Map(chapters.map(chapter => [chapter.id, chapter]));
-    
+
     // Update chapter numbers based on the new ordering
     const updatedChapters: Chapter[] = [];
-    
+
     for (let i = 0; i < newOrdering.length; i++) {
       const chapterId = newOrdering[i];
       const chapter = chaptersMap.get(chapterId);
-      
+
       if (chapter) {
         const updatedChapter = await this.updateChapter({
           id: chapterId,
           number: i + 1
         });
-        
+
         updatedChapters.push(updatedChapter);
       }
     }
-    
+
     return updatedChapters;
   }
 
@@ -162,7 +162,7 @@ class ChaptersStore extends DBStore<Chapter> {
    */
   async getPendingChapters(): Promise<Chapter[]> {
     const allChapters = await this.getAll();
-    return allChapters.filter(chapter => chapter.syncStatus === SyncStatus.PENDING);
+    return allChapters.filter(chapter => chapter.syncStatus === SyncStatus.UPLOAD_PENDING);
   }
 }
 

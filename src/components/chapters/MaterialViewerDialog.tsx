@@ -95,9 +95,9 @@ const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({ open, onClose, ma
 
     const renderPreviewContent = () => {
         if (isLoading) return <CircularProgress color="inherit" />;
-        
-        if (!content && !material.driveId) return <Alert severity="error" children="No content available. This material doesnt seemed to be synced to your G-Drive." />;
-        
+
+        if (!content && !material.driveId) return <Alert severity="error" children="No content available. This material doesnt seemed to be synced to your Cloud Storage." />;
+
         if (!content) return <Alert severity="error" children="Failed to load content." />;
 
         switch (material.type) {

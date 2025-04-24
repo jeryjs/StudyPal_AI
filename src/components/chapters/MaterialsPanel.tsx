@@ -1,3 +1,4 @@
+import { CloudDone, CloudDownload, CloudOff, CloudSync } from '@mui/icons-material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArticleIcon from '@mui/icons-material/Article'; // Word
 import AudioFileIcon from '@mui/icons-material/AudioFile';
@@ -11,13 +12,10 @@ import MoreVertIcon from '@mui/icons-material/MoreVert'; // Import MoreVertIcon
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
-import SyncedIcon from '@mui/icons-material/CloudDone'; // Synced icon
-import NotSyncIcon from '@mui/icons-material/CloudOff'; // Not Synced icon
 import {
     Alert,
     alpha,
     Box,
-    Fade,
     Button,
     Card,
     CardActionArea,
@@ -25,6 +23,8 @@ import {
     CircularProgress,
     Divider,
     Drawer,
+    Fade,
+    Grid,
     IconButton,
     LinearProgress,
     ListItemIcon,
@@ -35,14 +35,14 @@ import {
     Snackbar,
     styled,
     Typography,
-    Grid
+    useMediaQuery,
+    useTheme
 } from '@mui/material';
-import { useTheme, useMediaQuery } from '@mui/material';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 
-import { useSyncContext } from '@contexts/SyncContext';
+import useCloudStorage from '@hooks/useCloudStorage';
 import { useMaterials } from '@hooks/useMaterials';
-import { Chapter, Material, MaterialType } from '@type/db.types';
+import { Chapter, Material, MaterialType, SyncStatus } from '@type/db.types';
 import { formatBytes } from '@utils/utils';
 
 // --- Styled Components ---
@@ -150,6 +150,18 @@ const ContentLoadingOverlay = styled(Box)(({ theme }) => ({
     borderRadius: theme.shape.borderRadius,
 }));
 
+const MaterialStatusIcon = ({ material }: { material: Material }) => {
+    switch (material.syncStatus) {
+        case SyncStatus.UP_TO_DATE: return <CloudDone fontSize="small" color="primary" />;
+        case SyncStatus.SYNCING_UP: return <CloudSync fontSize="small" color="primary" />;
+        case SyncStatus.SYNCING_DOWN: return <CloudSync fontSize="small" color="primary" />;
+        case SyncStatus.ERROR: return <CloudOff fontSize="small" color="error" />;
+        default:
+            if (!material.driveId) return null; // No icon if not synced to Drive
+            else return <CloudDownload fontSize="small" color="primary" />;
+    }
+}
+
 // --- Helper Function ---
 
 export const renderMaterialIcon = (type: MaterialType, sx?: object): React.ReactElement => {
@@ -221,9 +233,8 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     const [snackbar, setSnackbar] = useState({ open: false, message: '' });
 
     // Get hooks for content fetching
-    const { materials, loading: materialsLoading, error: materialsError } = useMaterials(selectedChapter?.id || '');
-    const { getDriveFileContent, isInitialized: isSyncReady } = useSyncContext();
-    const { cacheMaterialContent } = useMaterials(selectedChapter?.id || '');
+    const { materials, loading: materialsLoading, error: materialsError, getMaterialContent } = useMaterials(selectedChapter?.id || '');
+    const cloud = useCloudStorage();
 
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, material: Material) => {
         event.stopPropagation(); // Prevent card click
@@ -287,8 +298,8 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
             setLoadingContent(prev => ({ ...prev, [material.id]: true }));
             setSnackbar({ open: true, message: `Loading ${formatBytes(material.size || 0)} from Drive...` });
 
-            const updatedMaterial = await getDriveFileContent(material.driveId).then(blob => cacheMaterialContent(material.id, { mimeType: blob.type, data: blob }));
-            if (updatedMaterial && updatedMaterial.content?.data) {
+            const updatedMaterial = { ...material, content: await getMaterialContent(material.id) } as Material;
+            if (updatedMaterial.content && updatedMaterial.content?.data) {
                 onViewMaterial(updatedMaterial);
             } else {
                 // If no updated material found (unlikely), use the original
@@ -302,7 +313,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
             setLoadingContent(prev => ({ ...prev, [material.id]: false }));
             setSnackbar({ ...snackbar, open: false });
         }
-    }, [onViewMaterial, getDriveFileContent, cacheMaterialContent, isSyncReady, materials, formatBytes, snackbar]);
+    }, [onViewMaterial, cloud, getMaterialContent, materials, formatBytes, snackbar]);
 
     // Type for display items (combines Material and uploading items)
     type DisplayItem = Material | {
@@ -357,9 +368,6 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
                     </Typography>
                 </DrawerHeader>
                 <Box sx={{ height: 'calc(100% - 64px)', overflow: 'auto' }}>
-                    {/* Render the panel content as usual, but not inside a Paper */}
-                    {/* ...existing code for the panel content, but without MaterialsContainer... */}
-                    {/* We'll move the main content rendering into a helper below for reuse */}
                     {renderPanelContent()}
                 </Box>
             </Drawer>
@@ -465,7 +473,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
                                                 <CardBottomInfo>
                                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                                                         <Typography variant="caption" color="text.secondary">{formatBytes(item.size || 0)}</Typography>
-                                                        {item.driveId ? <SyncedIcon fontSize="small" color="primary" sx={{ ml: 1 }} /> : (item.content?.data && <NotSyncIcon fontSize="small" color="error" sx={{ ml: 1 }} />)}
+                                                        <MaterialStatusIcon material={item} />
                                                     </Box>
                                                     {item.progress !== undefined && item.progress < 100 && item.progress > 0 && (
                                                         <LinearProgress variant="determinate" value={item.progress} sx={{ height: 4, borderRadius: 2 }} />

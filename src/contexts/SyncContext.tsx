@@ -1,5 +1,5 @@
-import { refreshDb } from '@db';
-import { DriveEventCallbacks, useGoogleDriveSync } from '@hooks/useGoogleDriveSync';
+import { exportDbToJson, importDbFromJson } from '@db';
+import useCloudStorage, { CloudProvider } from '@hooks/useCloudStorage';
 import {
   CloudQueue as CloudIcon,
   ArrowDownward as DownloadIcon,
@@ -18,9 +18,8 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
-  Divider, // Keep Stack for buttons
-  Grid // Use Grid for layout
-  ,
+  Divider,
+  Grid,
   List,
   ListItem,
   ListItemText,
@@ -29,15 +28,13 @@ import {
   Tooltip,
   Typography
 } from '@mui/material';
-import { SyncStatus } from '@type/db.types';
+import { materialsStore } from '@store/materialsStore';
+import { MaterialType, SyncStatus } from '@type/db.types';
 import React, { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 // --- Constants ---
 const LAST_SYNC_TIMESTAMP_KEY = 'studyPalLastSyncTimestamp';
 const DEBOUNCE_DELAY = 5000; // 5 seconds delay for auto-backup
-
-// --- Context Types ---
-export type SyncStatusState = 'idle' | 'checking' | 'syncing_up' | 'syncing_down' | 'up_to_date' | 'conflict' | 'error';
 
 export interface SyncContextType {
   // Auth state
@@ -52,20 +49,20 @@ export interface SyncContextType {
   lastSuccessfulSync: number | null;
 
   // Conflict handling
-  conflictDetails: { driveModified: number; localModified: number; driveSize?: number } | null;
+  conflictDetails: { cloud: { modifiedTime?: number, size?: number }, local: { modifiedTime?: number, size?: number } } | null;
   resolveConflict: (resolution: 'local' | 'drive' | null) => Promise<void>;
 
   // Manual operations
   backupDatabaseToDrive: () => Promise<void>;
   restoreDatabaseFromDrive: () => Promise<void>;
-  getDriveFileContent: (fileId: string) => Promise<Blob>;
+  getDriveFileContent: (fileId: string) => Promise<Blob>; // todo: remove this once i modularise the drive sync code
 
   // Flag to track if initialization has completed
   isInitialized: boolean;
 }
 
 // Helper function to format timestamp for display
-const formatTimestamp = (timestamp: number | null): string => {
+const formatTimestamp = (timestamp?: number): string => {
   if (!timestamp) return 'Never';
   return new Date(timestamp).toLocaleString();
 };
@@ -85,12 +82,7 @@ const SyncContext = createContext<SyncContextType | null>(null);
 export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Sync state managed by context
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(SyncStatus.IDLE);
-  const [error, setError] = useState<Error | null>(null);
-  const [conflictDetails, setConflictDetails] = useState<{
-    driveModified: number;
-    localModified: number;
-    driveSize?: number; // Keep driveSize
-  } | null>(null);
+  const [conflictDetails, setConflictDetails] = useState<SyncContextType['conflictDetails'] | null>(null);
   const [lastSuccessfulSync, setLastSuccessfulSync] = useState<number | null>(() => {
     // Initialize from localStorage
     const storedTime = localStorage.getItem(LAST_SYNC_TIMESTAMP_KEY);
@@ -108,9 +100,8 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
   const isFirstChangeRef = useRef<boolean>(true); // Track if this is the first change
 
   // Callbacks for the hook to notify context of events
-  const callbacks: DriveEventCallbacks = {
+  const callbacks = {
     onSyncStatusChange: setSyncStatus,
-    onError: setError,
     onConflictDetected: (details) => {
       // Enhanced conflict details with metadata
       setConflictDetails(details);
@@ -124,17 +115,104 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
     }
   };
 
-  // Use the Google Drive sync hook to handle API interactions
-  const {
-    isGapiLoaded,
-    authState,
-    signIn: driveSignIn,
-    signOut: driveSignOut,
-    getBackupMetadata,
-    backupDatabaseToDrive: backupToGDrive,
-    restoreDatabaseFromDrive: restoreFromGDrive,
-    getDriveFileContent,
-  } = useGoogleDriveSync(callbacks);
+  // Replace useGoogleDriveSync with useCloudStorage
+  const cloudStorage = useCloudStorage(CloudProvider.GoogleDrive);
+
+  // Replace isGapiLoaded, authState, signIn, signOut, getBackupMetadata, backupToGDrive, restoreFromGDrive, getDriveFileContent with cloudStorage equivalents
+  const isGapiLoaded = cloudStorage.isLoaded;
+  const isAuthenticated = cloudStorage.isAuthenticated;
+  const signIn = cloudStorage.signIn;
+  const signOut = cloudStorage.signOut;
+  const error = cloudStorage.error;
+
+  // Helper: find the backup file metadata
+  const getBackupMetadata = useCallback(async () => {
+    return await cloudStorage.findFile('studypal.db.json');
+  }, [cloudStorage]);
+
+  /**
+   * Uploads materials marked as PENDING to cloud storage.
+   * Separates reading from network/writing to avoid TransactionInactiveError.
+   */
+  const syncPendingMaterials = useCallback(async () => {
+    const pendingMaterials = await materialsStore.getPendingMaterials();
+    let uploadCount = 0;
+    let errorCount = 0;
+    for (const material of pendingMaterials) {
+      try {
+        // Only sync binary materials with Blob content
+        if ([MaterialType.LINK].includes(material.type) || !(material.content?.data instanceof Blob)) {
+          // Mark as up to date (no need to sync)
+          await materialsStore.updateMaterial({ id: material.id, syncStatus: SyncStatus.UP_TO_DATE });
+          continue;
+        }
+        // Upload to cloud
+        const folderPath = `${material.chapterId}`;
+        const fileId = await cloudStorage.uploadFile({
+          file: material.content.data,
+          name: material.id,
+          folderPath,
+          mimeType: material.content.mimeType
+        });
+        // Update local material with driveId/cloudId and sync status
+        await materialsStore.updateMaterial({
+          id: material.id,
+          driveId: fileId,
+          syncStatus: SyncStatus.UP_TO_DATE,
+          lastModified: Date.now()
+        });
+        uploadCount++;
+      } catch (err) {
+        console.error(`syncPendingMaterials: Failed to sync material ${material.id}:`, err);
+        await materialsStore.updateMaterial({ id: material.id, syncStatus: SyncStatus.ERROR });
+        errorCount++;
+      }
+    }
+    return { uploadCount, errorCount };
+  }, [cloudStorage]);
+
+  // Backup database to cloud
+  const backupDatabaseToDrive = useCallback(async () => {
+    try {
+      setSyncStatus(SyncStatus.SYNCING_UP);
+      const syncResult = await syncPendingMaterials();
+      const dbJson = await exportDbToJson();
+      const file = new Blob([dbJson], { type: 'application/json' });
+      await cloudStorage.uploadFile({ file, name: 'studypal.db.json', mimeType: 'application/json' });
+      // Update sync state
+      const now = Date.now();
+      localStorage.setItem(LAST_SYNC_TIMESTAMP_KEY, now.toString());
+      setLastSuccessfulSync(now);
+      isDbDirtyRef.current = false;
+      setSyncStatus(syncResult.errorCount > 0 ? SyncStatus.ERROR : SyncStatus.UP_TO_DATE);
+    } catch (err) {
+      setSyncStatus(SyncStatus.ERROR);
+    }
+  }, [cloudStorage, syncPendingMaterials]);
+
+  // Restore database from cloud
+  const restoreDatabaseFromDrive = useCallback(async () => {
+    try {
+      const fileMeta = await cloudStorage.findFile('studypal.db.json');
+      if (!fileMeta || !fileMeta.id) throw new Error('No backup found in cloud storage.');
+      const blob = await cloudStorage.downloadFile(fileMeta.id);
+      const dbJson = await blob.text();
+      await importDbFromJson((dbJson));
+      const now = Date.now();
+      localStorage.setItem(LAST_SYNC_TIMESTAMP_KEY, now.toString());
+      setLastSuccessfulSync(now);
+      setSyncStatus(SyncStatus.UP_TO_DATE);
+      alert('Database restored from cloud. Reloading page...');
+      location.reload();
+    } catch (err) {
+      setSyncStatus(SyncStatus.ERROR);
+      console.error('Error restoring database from cloud:', err);
+      alert('Failed to restore database from cloud.\n\n' + err);
+    }
+  }, [cloudStorage]);
+
+  // Provide a stub for getDriveFileContent (for legacy compatibility, can be removed if not needed)
+  const getDriveFileContent = cloudStorage.downloadFile;
 
   // Effect to show conflict dialog when in conflict state
   useEffect(() => {
@@ -160,7 +238,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
 
       // Only proceed if authenticated and no conflict
-      if (authState.isAuthenticated && !conflictDetails) {
+      if (isAuthenticated && !conflictDetails) {
         // Special handling for first change: immediate backup
         if (isFirstChangeRef.current) {
           console.log('First change detected, triggering immediate backup.');
@@ -188,11 +266,11 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
         backupTimeoutRef.current = null;
       }
     };
-  }, [authState.isAuthenticated, conflictDetails]); // Re-run if auth or conflict state changes
+  }, [isAuthenticated, conflictDetails]); // Re-run if auth or conflict state changes
 
   // Initialize sync on app load, not just when settings page is opened
   useEffect(() => {
-    if (isGapiLoaded && authState.isAuthenticated) {
+    if (isGapiLoaded && isAuthenticated) {
       // Check initial sync state after GAPI is loaded and authenticated
       checkInitialSyncState().then(() => {
         setIsInitialized(true);
@@ -201,7 +279,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
       // Mark as initialized even if not authenticated
       setIsInitialized(true);
     }
-  }, [isGapiLoaded, authState.isAuthenticated]);
+  }, [isGapiLoaded, isAuthenticated]);
 
   // --- Sync Logic ---
 
@@ -212,13 +290,12 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
     // Set status immediately
     setSyncStatus((SyncStatus.CHECKING));
 
-    if (!authState.isAuthenticated) {
-      setSyncStatus(SyncStatus.IDLE); // Reset if not authenticated
+    if (!isAuthenticated) {
+      setSyncStatus(SyncStatus.NOTAUTHENTICATED); // Reset if not authenticated
       return;
     }
 
     // Reset state
-    setError(null);
     setConflictDetails(null);
 
     try {
@@ -241,15 +318,15 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
       }      // Backup exists on Drive
       const driveModifiedTime = new Date(driveFile.modifiedTime || 0).getTime();
       // Get file size if available
-      const driveSize = driveFile.size ? parseInt(driveFile.size as string, 10) : undefined;
+      const driveSize = typeof driveFile.size === 'string' ? parseInt(driveFile.size, 10) : driveFile.size;
+      const localSize = await exportDbToJson().then((json) => (new Blob([json], { type: 'application/json' })).size);
 
       if (!localLastSync) {
         // Have Drive backup, but never synced before (or cleared local storage)
         console.log('Drive backup found, but no local sync history. Prompting user.');
         setConflictDetails({
-          driveModified: driveModifiedTime,
-          localModified: Date.now(),
-          driveSize // Pass driveSize
+          cloud: { modifiedTime: driveModifiedTime, size: driveSize },
+          local: { modifiedTime: localLastSync!!, size: localSize }
         });
         setSyncStatus(SyncStatus.CONFLICT);
       } else if (driveModifiedTime > localLastSync + 1000) { // Add buffer for clock skew
@@ -258,18 +335,16 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
           // Conflict: Both Drive and local have changed since last sync
           console.log('Conflict detected: Drive backup and local DB both changed since last sync.');
           setConflictDetails({
-            driveModified: driveModifiedTime,
-            localModified: Date.now(),
-            driveSize // Pass driveSize
+            cloud: { modifiedTime: driveModifiedTime, size: driveSize },
+            local: { modifiedTime: localLastSync, size: localSize }
           });
           setSyncStatus(SyncStatus.CONFLICT);
         } else {
           // No local changes, Drive is newer -> Prompt user (safest default)
           console.log('Drive backup is newer than last sync, no local changes detected. Prompting user.');
           setConflictDetails({
-            driveModified: driveModifiedTime,
-            localModified: localLastSync,
-            driveSize // Pass driveSize
+            cloud: { modifiedTime: driveModifiedTime, size: driveSize },
+            local: { modifiedTime: localLastSync, size: localSize }
           });
           setSyncStatus(SyncStatus.CONFLICT);
         }
@@ -284,60 +359,11 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
     } catch (err: any) {
       console.error('Error during initial sync check:', err);
-      setError(err instanceof Error ? err : new Error('Failed to check sync status.'));
       setSyncStatus(SyncStatus.ERROR);
     }
-  }, [lastSuccessfulSync, authState.isAuthenticated, getBackupMetadata]); // Removed backupDatabaseToDrive from dependency array
+  }, [lastSuccessfulSync, isAuthenticated, getBackupMetadata]);
 
   // --- Sync Operations ---
-
-  /**
-   * Sign in wrapper
-   */
-  const signIn = useCallback(async () => {
-    await driveSignIn();
-    // Authentication state change will trigger initial sync check via useEffect
-  }, [driveSignIn]);
-
-  /**
-   * Sign out wrapper
-   */
-  const signOut = useCallback(async () => {
-    await driveSignOut();
-    // Reset states
-    isFirstChangeRef.current = true;
-  }, [driveSignOut]);
-
-  /**
-   * Backup database to Drive wrapper
-   */
-  const backupDatabaseToDrive = useCallback(async () => {
-    try {
-      await backupToGDrive();
-      // State will be updated via the callbacks
-    } catch (err) {
-      console.error('Backup error in SyncContext:', err);
-      // Error should be handled via callbacks
-    }
-  }, [backupToGDrive]);
-
-  /**
-   * Restore database from Drive wrapper
-   */
-  const restoreDatabaseFromDrive = useCallback(async () => {
-    try {
-      await restoreFromGDrive();
-      // State will be updated via the callbacks
-
-      // Consider prompting user to reload or using a state management library to refresh data
-      // await refreshDb();
-      alert("Database restored from Drive. Reloading page...");
-      window.location.reload();
-    } catch (err) {
-      console.error('Restore error in SyncContext:', err);
-      // Error should be handled via callbacks
-    }
-  }, [restoreFromGDrive, refreshDb]);
 
   /**
    * Handle conflict resolution - called from conflict dialog
@@ -370,7 +396,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   // Context value
   const contextValue: SyncContextType = {
-    isAuthenticated: authState.isAuthenticated,
+    isAuthenticated,
     isGapiLoaded,
     signIn,
     signOut,
@@ -416,29 +442,27 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
                   {/* Google Drive Data Card - Grid item */}
                   <Grid size={{ xs: 12, md: 6 }}>
                     <Paper elevation={1} sx={{ p: 2, height: '100%' }}> {/* Ensure Paper fills Grid item height */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <CloudIcon color="primary" sx={{ mr: 1 }} />
                         <Typography variant="subtitle1" fontWeight="bold">
                           Google Drive Data
                         </Typography>
                       </Box>
-                      <Divider sx={{ mb: 2 }} />
+                      <Divider />
                       <List dense>
                         <ListItem>
                           <ListItemText
                             primary="Last Modified"
-                            secondary={formatTimestamp(conflictDetails.driveModified)}
+                            secondary={formatTimestamp(conflictDetails.cloud.modifiedTime)}
                           />
                         </ListItem>
                         {/* Display driveSize if available */}
-                        {(conflictDetails.driveSize !== undefined && conflictDetails.driveSize !== null) && (
-                          <ListItem>
-                            <ListItemText
-                              primary="Backup Size"
-                              secondary={formatFileSize(conflictDetails.driveSize)}
-                            />
-                          </ListItem>
-                        )}
+                        <ListItem>
+                          <ListItemText
+                            primary="Backup Size"
+                            secondary={formatFileSize(conflictDetails.cloud.size)}
+                          />
+                        </ListItem>
                       </List>
                       <Tooltip title="Choosing this will download from Drive and replace your local data">
                         <Chip
@@ -447,7 +471,6 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
                           size="small"
                           color="primary"
                           variant="outlined"
-                          sx={{ mt: 1 }}
                         />
                       </Tooltip>
                     </Paper>
@@ -456,25 +479,25 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
                   {/* Local Data Card - Grid item */}
                   <Grid size={{ xs: 12, md: 6 }}>
                     <Paper elevation={1} sx={{ p: 2, height: '100%' }}> {/* Ensure Paper fills Grid item height */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <StorageIcon color="secondary" sx={{ mr: 1 }} />
                         <Typography variant="subtitle1" fontWeight="bold">
                           Local Data
                         </Typography>
                       </Box>
-                      <Divider sx={{ mb: 2 }} />
+                      <Divider />
                       <List dense>
                         <ListItem>
                           <ListItemText
                             primary="Last Modified"
-                            secondary={formatTimestamp(conflictDetails.localModified)}
+                            secondary={formatTimestamp(conflictDetails.local.modifiedTime)}
                           />
                         </ListItem>
                         {/* Local metadata can be expanded in future */}
                         <ListItem>
                           <ListItemText
-                            primary="Status"
-                            secondary="Contains your current working data"
+                            primary="Backup Size"
+                            secondary={formatFileSize(conflictDetails.local.size)}
                           />
                         </ListItem>
                       </List>
@@ -485,7 +508,6 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
                           size="small"
                           color="secondary"
                           variant="outlined"
-                          sx={{ mt: 1 }}
                         />
                       </Tooltip>
                     </Paper>
@@ -537,7 +559,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
               }
               sx={{ width: { xs: '100%', sm: 'auto' }, minWidth: { sm: 200 } }} // Responsive width
             >
-              {loadingResolution === 'local' ? 'Uploading...' : 'Keep Local Data'}
+              {loadingResolution === 'local' ? 'Uploading...' : 'Use Local Data'}
             </Button>
           </Stack>
         </DialogActions>
@@ -547,7 +569,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
 };
 
 // Custom hook to use the SyncContext
-export const useSyncContext = (): SyncContextType => {
+export const useSyncContext = () => {
   const context = useContext(SyncContext);
   if (!context) {
     throw new Error('useSyncContext must be used within a SyncContextProvider');

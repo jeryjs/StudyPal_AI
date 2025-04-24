@@ -1,6 +1,6 @@
 import { DBSchema, IndexNames as IDBIndexNames, IDBPDatabase, IDBPTransaction, StoreNames as IDBStoreNames, openDB } from "idb";
 // Import the new SyncStatus enum
-import { tryBase64ToBlob, blobToBase64 } from "@utils/utils";
+import { blobToBase64, tryBase64ToBlob } from "@utils/utils";
 import { Chapter, Material, Subject, SyncQueueItem, SyncStatus } from "./types/db.types";
 
 /**
@@ -355,6 +355,9 @@ export const importDbFromJson = async (jsonString: string): Promise<void> => {
 							if (oldMaterial && oldMaterial.content) {
 								item.content = oldMaterial.content;
 								console.log(`Used existing content for material ${item.id}`);
+							} else {
+								// set the item's sync status to 'pending' if no content is found
+								item.syncStatus = SyncStatus.DOWNLOAD_PENDING;
 							}
 						}
 						await store.put(item);

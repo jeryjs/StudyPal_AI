@@ -1,7 +1,7 @@
 import { DBStore } from '@db';
-import { Subject, SyncStatus, StoreNames } from '@type/db.types';
-import { generateColorFromString } from '@utils/utils';
+import { StoreNames, Subject, SyncStatus } from '@type/db.types';
 import slugify from '@utils/Slugify';
+import { generateColorFromString } from '@utils/utils';
 
 /**
  * Subjects store implementation
@@ -30,7 +30,7 @@ class SubjectsStore extends DBStore<Subject> {
     const timestamp = Date.now();
     const id = slugify(name, true); // Using slugify with unique=true
     const color = generateColorFromString(name);
-    
+
     const newSubject: Subject = {
       id,
       name,
@@ -38,9 +38,9 @@ class SubjectsStore extends DBStore<Subject> {
       categories,
       createdAt: timestamp,
       lastModified: timestamp,
-      syncStatus: SyncStatus.PENDING
+      syncStatus: SyncStatus.UPLOAD_PENDING
     };
-    
+
     await this.put(newSubject); // Use put(value) instead of set(key, value)
     return newSubject;
   }
@@ -55,14 +55,14 @@ class SubjectsStore extends DBStore<Subject> {
     if (!existingSubject) {
       throw new Error(`Subject not found: ${subject.id}`);
     }
-    
+
     const updatedSubject: Subject = {
       ...existingSubject,
       ...subject,
       lastModified: Date.now(),
-      syncStatus: SyncStatus.PENDING
+      syncStatus: SyncStatus.UPLOAD_PENDING
     };
-    
+
     await this.put(updatedSubject); // Use put(value) instead of set(key, value)
     return updatedSubject;
   }
@@ -91,7 +91,7 @@ class SubjectsStore extends DBStore<Subject> {
    */
   async getSubjectsByCategory(category: string): Promise<Subject[]> {
     const allSubjects = await this.getAll();
-    return allSubjects.filter(subject => 
+    return allSubjects.filter(subject =>
       subject.categories && subject.categories.includes(category)
     );
   }
@@ -103,13 +103,13 @@ class SubjectsStore extends DBStore<Subject> {
   async getAllCategories(): Promise<string[]> {
     const allSubjects = await this.getAll();
     const categoriesSet = new Set<string>();
-    
+
     allSubjects.forEach(subject => {
       if (subject.categories) {
         subject.categories.forEach(category => categoriesSet.add(category));
       }
     });
-    
+
     return Array.from(categoriesSet).sort();
   }
 
@@ -119,7 +119,7 @@ class SubjectsStore extends DBStore<Subject> {
    */
   async getPendingSubjects(): Promise<Subject[]> {
     const allSubjects = await this.getAll();
-    return allSubjects.filter(subject => subject.syncStatus === SyncStatus.PENDING);
+    return allSubjects.filter(subject => subject.syncStatus === SyncStatus.UPLOAD_PENDING);
   }
 }
 

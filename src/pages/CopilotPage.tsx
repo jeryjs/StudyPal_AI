@@ -1,17 +1,27 @@
-import React, { useState } from 'react';
-import { 
-  Box, Typography, Paper, Avatar, useTheme, alpha, 
-  Drawer, List, ListItem, ListItemText, ListItemIcon, 
-  Collapse, IconButton, Divider
-} from '@mui/material';
-import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined'; // Copilot icon
-import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined'; // User icon
-import AttachFileIcon from '@mui/icons-material/AttachFile'; // Attach icon
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import NoteIcon from '@mui/icons-material/Note';
+import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
+import {
+    alpha,
+    Avatar,
+    Box,
+    Collapse,
+    Divider,
+    Drawer,
+    IconButton,
+    List, ListItem,
+    ListItemIcon,
+    ListItemText,
+    Paper,
+    Typography,
+    useTheme
+} from '@mui/material';
+import React, { useEffect, useRef, useState } from 'react';
 
-// TODO: Replace with actual message data structure
+// Message and context types
 interface Message {
     id: string;
     sender: 'user' | 'copilot';
@@ -19,28 +29,52 @@ interface Message {
     timestamp: string;
 }
 
-// Context data structure
-interface ContextCategory {
-    id: string;
-    name: string;
-    items: ContextItem[];
-}
-
-interface ContextItem {
-    id: string;
-    name: string;
-}
-
-// Placeholder messages
+// Placeholder data
 const messages: Message[] = [
     { id: '1', sender: 'copilot', text: 'Hello! How can I help you study today?', timestamp: '10:30 AM' },
     { id: '2', sender: 'user', text: 'Can you explain the concept of closures in JavaScript?', timestamp: '10:31 AM' },
     { id: '3', sender: 'copilot', text: 'Certainly! A closure is the combination of a function bundled together (enclosed) with references to its surrounding state (the lexical environment). In other words, a closure gives you access to an outer function\'s scope from an inner function. In JavaScript, closures are created every time a function is created, at function creation time.', timestamp: '10:32 AM' },
-     { id: '4', sender: 'user', text: 'Thanks! That makes sense.', timestamp: '10:33 AM' },
+    { id: '4', sender: 'user', text: 'Thanks! That makes sense.', timestamp: '10:33 AM' },
+    { id: '5', sender: 'user', text: 'Can you give me an example of a closure?', timestamp: '10:34 AM' },
+    { id: '6', sender: 'copilot', text: 'Absolutely! Here is a simple example:\n\nfunction makeAdder(x) {\n  return function(y) {\n    return x + y;\n  };\n}\n\nconst add5 = makeAdder(5);\nconsole.log(add5(2)); // 7\n\nIn this example, add5 is a closure that remembers the value of x (which is 5) even after makeAdder has finished executing.', timestamp: '10:34 AM' },
+    { id: '7', sender: 'user', text: 'So the inner function can access variables from the outer function even after the outer function has returned?', timestamp: '10:35 AM' },
+    { id: '8', sender: 'copilot', text: 'Exactly! That\'s the power of closures. The inner function retains access to the variables of the outer function, even after the outer function has completed execution.', timestamp: '10:35 AM' },
+    { id: '9', sender: 'user', text: 'Are closures used a lot in JavaScript?', timestamp: '10:36 AM' },
+    { id: '10', sender: 'copilot', text: 'Yes, closures are very common in JavaScript. They are used for data privacy, event handlers, callback functions, and more. For example, when you use setTimeout or setInterval, you are often using closures.', timestamp: '10:36 AM' },
+    { id: '11', sender: 'user', text: 'Can you show me how closures are used for data privacy?', timestamp: '10:37 AM' },
+    { id: '12', sender: 'copilot', text: 'Sure! Here\'s an example using closures to create private variables:\n\nfunction Counter() {\n  let count = 0;\n  return {\n    increment: function() { count++; return count; },\n    decrement: function() { count--; return count; },\n    getCount: function() { return count; }\n  };\n}\n\nconst counter = Counter();\nconsole.log(counter.increment()); // 1\nconsole.log(counter.getCount()); // 1\n\nHere, count is not accessible from outside the Counter function, but the returned methods can access and modify it.', timestamp: '10:37 AM' },
+    { id: '13', sender: 'user', text: 'That\'s really helpful. What about event handlers?', timestamp: '10:38 AM' },
+    { id: '14', sender: 'copilot', text: 'Great question! Closures are often used in event handlers to remember the state at the time the handler was created. For example:\n\nfor (var i = 0; i < 3; i++) {\n  setTimeout(function() {\n    console.log(i);\n  }, 1000);\n}\n\nThis will print 3 three times, because the variable i is shared. But if you use a closure:\n\nfor (var i = 0; i < 3; i++) {\n  (function(j) {\n    setTimeout(function() {\n      console.log(j);\n    }, 1000);\n  })(i);\n}\n\nNow it prints 0, 1, 2 as expected.', timestamp: '10:38 AM' },
+    { id: '15', sender: 'user', text: 'Why does the first example print 3 three times?', timestamp: '10:39 AM' },
+    { id: '16', sender: 'copilot', text: 'Because the variable i is not block-scoped (with var), so by the time the setTimeout callbacks run, the loop has finished and i is 3. All callbacks reference the same i. Using a closure (or let instead of var) captures the value at each iteration.', timestamp: '10:39 AM' },
+    { id: '17', sender: 'user', text: 'If I use let instead of var, will it work?', timestamp: '10:40 AM' },
+    { id: '18', sender: 'copilot', text: 'Yes! let is block-scoped, so each iteration of the loop gets its own i. This means the setTimeout callbacks will print 0, 1, and 2 as expected.', timestamp: '10:40 AM' },
+    { id: '19', sender: 'user', text: 'Awesome. Can closures cause memory leaks?', timestamp: '10:41 AM' },
+    { id: '20', sender: 'copilot', text: 'Closures themselves do not cause memory leaks, but if a closure holds a reference to a large object that is no longer needed, it can prevent that object from being garbage collected. So, be mindful of what you keep in closures.', timestamp: '10:41 AM' },
+    { id: '21', sender: 'user', text: 'Thanks for the detailed explanation! Can you summarize closures in one sentence?', timestamp: '10:42 AM' },
+    { id: '22', sender: 'copilot', text: 'A closure is a function that remembers and can access variables from outside its own scope, even after the outer function has finished executing.', timestamp: '10:42 AM' },
+    { id: '23', sender: 'user', text: 'Perfect. Now, can you tell me about promises in JavaScript?', timestamp: '10:43 AM' },
+    { id: '24', sender: 'copilot', text: 'Of course! A Promise is an object representing the eventual completion or failure of an asynchronous operation. It allows you to write asynchronous code in a more manageable way, avoiding callback hell.', timestamp: '10:43 AM' },
+    { id: '25', sender: 'user', text: 'How do I create a promise?', timestamp: '10:44 AM' },
+    { id: '26', sender: 'copilot', text: 'You can create a promise using the Promise constructor:\n\nconst myPromise = new Promise((resolve, reject) => {\n  // Do something async\n  if (success) {\n    resolve(result);\n  } else {\n    reject(error);\n  }\n});', timestamp: '10:44 AM' },
+    { id: '27', sender: 'user', text: 'How do I use then and catch?', timestamp: '10:45 AM' },
+    { id: '28', sender: 'copilot', text: 'You can use .then() to handle resolved values and .catch() to handle errors:\n\nmyPromise.then(result => {\n  // handle result\n}).catch(error => {\n  // handle error\n});', timestamp: '10:45 AM' },
+    { id: '29', sender: 'user', text: 'What about async/await?', timestamp: '10:46 AM' },
+    { id: '30', sender: 'copilot', text: 'Async/await is syntax sugar over promises. You can write asynchronous code that looks synchronous:\n\nasync function fetchData() {\n  try {\n    const result = await myPromise;\n    // handle result\n  } catch (error) {\n    // handle error\n  }\n}', timestamp: '10:46 AM' },
+    { id: '31', sender: 'user', text: 'Thank you so much! This has been really helpful.', timestamp: '10:47 AM' },
+    { id: '32', sender: 'copilot', text: 'You\'re welcome! Let me know if you have any more questions or need further explanations.', timestamp: '10:47 AM' },
+    // Add more messages if you want it even longer!
 ];
-
-// Placeholder context categories
-const contextCategories: ContextCategory[] = [
+export interface ContextCategory {
+    id: string;
+    name: string;
+    items: ContextItem[];
+}
+export interface ContextItem {
+    id: string;
+    name: string;
+}
+export const contextCategories: ContextCategory[] = [
     {
         id: 'notes',
         name: 'My Notes',
@@ -68,196 +102,94 @@ const contextCategories: ContextCategory[] = [
     },
 ];
 
-const CopilotPage: React.FC = () => {
+export interface CopilotPageProps {
+    input: string,
+    contexts: ContextItem[],
+    attachContextOpen: boolean,
+};
+
+const CopilotPage: React.FC<CopilotPageProps & { setCopilot: React.Dispatch<React.SetStateAction<CopilotPageProps>> }> = ({ input, contexts, attachContextOpen, setCopilot }) => {
     const theme = useTheme();
-    const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
-    const [sidebarWidth, setSidebarWidth] = useState(280); // Fixed width for the sidebar
+    
+    const chatListRef = useRef<HTMLDivElement>(null);
 
-    const toggleCategory = (categoryId: string) => {
-        setExpandedCategories(prev => ({
-            ...prev,
-            [categoryId]: !prev[categoryId]
-        }));
-    };
+    // Scroll to bottom on mount or when messages change
+    useEffect(() => {
+        if (chatListRef.current) {
+            chatListRef.current.scrollTop = chatListRef.current.scrollHeight;
+        }
+    }, [messages.length]);
 
-    const handleAttach = (item: ContextItem) => {
-        // TODO: Implement attachment functionality
-        console.log(`Attaching item: ${item.name}`);
-    };
-
-    // Glassmorphism style for chat bubbles (adapted)
     const glassChatBubble = (sender: 'user' | 'copilot') => ({
-        background: alpha(sender === 'user' ? theme.palette.primary.main : theme.palette.background.paper, 0.6), // Adjusted alpha and colors
-        backdropFilter: 'blur(10px)',
+        background: sender === 'user' ? alpha(theme.palette.primary.main, 0.2) : theme.palette.background.paper,
         border: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
         boxShadow: `0 4px 16px 0 ${alpha(theme.palette.common.black, 0.1)}`,
-        borderRadius: '20px', // iOS-like rounded corners
-        borderTopLeftRadius: sender === 'copilot' ? '4px' : '20px', // Specific corner adjustments
+        borderRadius: '20px',
+        borderTopLeftRadius: sender === 'copilot' ? '4px' : '20px',
         borderTopRightRadius: sender === 'user' ? '4px' : '20px',
-        borderBottomLeftRadius: '20px',
-        borderBottomRightRadius: '20px',
         p: 1.5,
-        maxWidth: '75%',
-        color: sender === 'user' ? theme.palette.primary.contrastText : theme.palette.text.primary, // Ensure text contrast
+        maxWidth: { md: '75%', xs: '95%' },
         display: 'flex',
-        alignItems: 'flex-start', // Align icon with top of text
+        alignItems: 'flex-start',
     });
 
-
     return (
-        <Box sx={{ height: '100%', display: 'flex' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', m: {xs: 1, md: 4} }}>
             {/* Main chat area */}
-            <Box sx={{ 
-                flexGrow: 1, 
-                height: '100%', 
-                display: 'flex', 
-                flexDirection: 'column', 
-                p: { xs: 2, md: 3 } 
-            }}>
-                {/* Message List */}
-                <Box sx={{ flexGrow: 1, overflowY: 'auto', mb: 2, pr: 1 /* Padding for scrollbar */ }}>
-                    {messages.map((message) => (
-                        <Box
-                            key={message.id}
-                            sx={{
-                                display: 'flex',
-                                justifyContent: message.sender === 'user' ? 'flex-end' : 'flex-start',
-                                mb: 2,
-                            }}
-                        >
-                            {/* Apply the new style */}
-                            <Paper sx={glassChatBubble(message.sender)}>
-                                <Avatar sx={{
-                                    width: 32,
-                                    height: 32,
-                                    mr: 1.5,
-                                    mt: 0.5, // Align avatar slightly lower
-                                    bgcolor: message.sender === 'user' ? alpha(theme.palette.common.white, 0.3) : theme.palette.text.secondary, // Adjust avatar background for user
-                                    color: message.sender === 'user' ? theme.palette.primary.contrastText : theme.palette.background.default, // Adjust icon color
-                                    fontSize: '1rem'
-                                }}>
-                                    {message.sender === 'user' ? <AccountCircleOutlinedIcon fontSize="small"/> : <SmartToyOutlinedIcon fontSize="small"/>}
-                                </Avatar>
-                                <Box>
-                                    <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                        {message.text}
-                                    </Typography>
-                                    <Typography variant="caption" sx={{ 
-                                        display: 'block', 
-                                        textAlign: 'right', 
-                                        mt: 0.5, 
-                                        color: message.sender === 'user' ? alpha(theme.palette.primary.contrastText, 0.7) : 'text.secondary', // Adjust timestamp color
-                                        fontSize: '0.7rem' 
-                                    }}>
-                                        {message.timestamp}
-                                    </Typography>
-                                </Box>
-                            </Paper>
-                        </Box>
-                    ))}
-                </Box>
-
-                {/* Input is handled by the Chatbar component */}
-            </Box>
-
-            <IconButton
-                onClick={() => setSidebarWidth(sidebarWidth ? 0 : 280)} // Toggle sidebar width
-                sx={{ 
-                    position: 'absolute', 
-                    right: 16, 
-                    bottom: 16, 
-                    zIndex: 10000003, 
-                    backgroundColor: theme.palette.background.paper, 
-                    boxShadow: theme.shadows[2], 
-                    borderRadius: '50%', 
-                    '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.1) } 
-                }}
-            >
-                <AttachFileIcon />
-            </IconButton>
-
-            {/* Context Sidebar */}
-            <Drawer
-                variant="persistent"
-                anchor="right"
-                ModalProps={{ keepMounted: true }} // Better open performance on mobile
-                open={!!sidebarWidth}
+            {/* Scrollable chat list, fills available space above chatbar */}
+            <Box
+                ref={chatListRef}
                 sx={{
-                    width: sidebarWidth,
-                    flexShrink: 0,
-                    '& .MuiDrawer-paper': {
-                        width: sidebarWidth,
-                        position: 'relative',
-                        borderLeft: `1px solid ${theme.palette.divider}`,
-                        boxSizing: 'border-box',
-                    },
+                    width: '100%',
+                    maxWidth: 720,
+                    flexGrow: 1,
+                    pt: {xs: 10, md: 0}, // leave space for appbar
+                    display: 'flex',
+                    flexDirection: 'column',
                 }}
             >
-                <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
-                    <Typography variant="h6">Contexts</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Attach relevant information to your chat
-                    </Typography>
-                </Box>
-                
-                <List sx={{ pt: 0 }}>
-                    {contextCategories.map((category) => (
-                        <React.Fragment key={category.id}>
-                            <ListItem 
-                                onClick={() => toggleCategory(category.id)}
-                                sx={{ py: 1 }}
-                            >
-                                <ListItemIcon sx={{ minWidth: 36 }}>
-                                    <NoteIcon fontSize="small" />
-                                </ListItemIcon>
-                                <ListItemText primary={category.name} />
-                                {expandedCategories[category.id] ? 
-                                    <ExpandLessIcon /> : 
-                                    <ExpandMoreIcon />
-                                }
-                            </ListItem>
-                            
-                            <Collapse in={expandedCategories[category.id]} timeout="auto" unmountOnExit>
-                                <List component="div" disablePadding>
-                                    {category.items.map((item) => (
-                                        <ListItem 
-                                            key={item.id} 
-                                            sx={{ 
-                                                pl: 4,
-                                                py: 0.5,
-                                                '&:hover .attach-icon': {
-                                                    opacity: 1,
-                                                }
-                                            }}
-                                        >
-                                            <IconButton 
-                                                size="small" 
-                                                onClick={() => handleAttach(item)}
-                                                className="attach-icon"
-                                                sx={{ 
-                                                    mr: 1, 
-                                                    opacity: 0.3,
-                                                    transition: 'opacity 0.2s'
-                                                }}
-                                            >
-                                                <AttachFileIcon fontSize="small" />
-                                            </IconButton>
-                                            <ListItemText 
-                                                primary={item.name} 
-                                                primaryTypographyProps={{ 
-                                                    variant: 'body2',
-                                                    noWrap: true
-                                                }} 
-                                            />
-                                        </ListItem>
-                                    ))}
-                                </List>
-                            </Collapse>
-                            <Divider component="li" variant="inset" />
-                        </React.Fragment>
-                    ))}
-                </List>
-            </Drawer>
+                {messages.map((message) => (
+                    <Box
+                        key={message.id}
+                        sx={{
+                            display: 'flex',
+                            justifyContent: message.sender === 'user' ? 'flex-end' : 'flex-start',
+                            mb: 2,
+                            width: '100%',
+                        }}
+                    >
+                        <Paper sx={{ ...glassChatBubble(message.sender), flexDirection: message.sender === 'user' ? 'row-reverse' : 'row' }}>
+                            <Avatar sx={{
+                                width: 32,
+                                height: 32,
+                                ml: message.sender === 'user' ? 1.5 : 0,
+                                mr: message.sender === 'user' ? 0 : 1.5,
+                                mt: 0.5,
+                                bgcolor: message.sender === 'user' ? alpha(theme.palette.common.white, 0.3) : theme.palette.text.secondary,
+                                color: message.sender === 'user' ? theme.palette.primary.contrastText : theme.palette.background.default,
+                                fontSize: '1rem'
+                            }}>
+                                {message.sender === 'user' ? <AccountCircleOutlinedIcon fontSize="small" /> : <SmartToyOutlinedIcon fontSize="small" />}
+                            </Avatar>
+                            <Box>
+                                <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                    {message.text}
+                                </Typography>
+                                <Typography variant="caption" sx={{
+                                    display: 'block',
+                                    textAlign: 'right',
+                                    mt: 0.5,
+                                    color: message.sender === 'user' ? alpha(theme.palette.primary.contrastText, 0.7) : 'text.secondary',
+                                    fontSize: '0.7rem'
+                                }}>
+                                    {message.timestamp}
+                                </Typography>
+                            </Box>
+                        </Paper>
+                    </Box>
+                ))}
+            </Box>
+            {/* Input is handled by the Chatbar component */}
         </Box>
     );
 };

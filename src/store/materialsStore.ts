@@ -137,8 +137,12 @@ class MaterialsStore extends DBStore<Material> {
    * @param id - The material ID
    * @returns The material or undefined if not found
    */
-  async getMaterialById(id: string): Promise<Material | undefined> {
-    return this.get(id);
+  async getMaterialById(id: string): Promise<Material> {
+    const material = await this.get(id);
+    if (!material) {
+      throw new Error(`Material not found: ${id}`);
+    }
+    return material;
   }
 
   /**

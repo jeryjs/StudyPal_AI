@@ -1,6 +1,7 @@
 import { materialsStore } from '@store/materialsStore';
 import { Material, MaterialType } from '@type/db.types';
 import { useCallback, useEffect, useState } from 'react';
+import { useGoogleDriveSync } from './useGoogleDriveSync';
 
 /**
  * Hook for managing materials in the database
@@ -10,6 +11,13 @@ export function useMaterials(chapterId?: string) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
+  const { deleteFileItem } = useGoogleDriveSync({
+      onSyncStatusChange: () => {},
+      onConflictDetected: () => {},
+      onSyncComplete: () => {},
+      onError: () => {},
+    });
+    
   // Fetch materials for a specific chapter or all materials
   const fetchMaterials = useCallback(async (targetChapterId?: string) => {
     setLoading(true);
@@ -103,6 +111,7 @@ export function useMaterials(chapterId?: string) {
   const deleteMaterial = useCallback(async (materialId: string): Promise<void> => {
     try {
       // Delete the material
+      await getMaterial(materialId).then(m => deleteFileItem(m.driveId));
       await materialsStore.deleteMaterial(materialId);
 
       // Remove from local state
@@ -114,7 +123,7 @@ export function useMaterials(chapterId?: string) {
   }, []);
 
   // Get a material by ID
-  const getMaterial = useCallback(async (materialId: string): Promise<Material | undefined> => {
+  const getMaterial = useCallback(async (materialId: string): Promise<Material> => {
     try {
       return await materialsStore.getMaterialById(materialId);
     } catch (err) {

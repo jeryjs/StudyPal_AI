@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Chapter } from '@type/db.types';
 import { chaptersStore } from '@store/chaptersStore';
 import { materialsStore } from '@store/materialsStore';
+import { useGoogleDriveSync } from './useGoogleDriveSync';
 
 /**
  * Hook for managing chapters in the database
@@ -10,6 +11,13 @@ export function useChapters(subjectId?: string) {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
+
+  const { deleteFileItem } = useGoogleDriveSync({
+      onSyncStatusChange: () => {},
+      onConflictDetected: () => {},
+      onSyncComplete: () => {},
+      onError: () => {},
+    });
 
   // Fetch chapters for a specific subject or all chapters
   const fetchChapters = useCallback(async (targetSubjectId?: string) => {
@@ -97,10 +105,12 @@ export function useChapters(subjectId?: string) {
       
       // Delete all materials in the chapter
       for (const material of chapterMaterials) {
+        material.driveId && await deleteFileItem(material.driveId);
         await materialsStore.deleteMaterial(material.id);
       }
       
       // Delete chapter
+      getChapter(chapterId).then(c => deleteFileItem(c.driveId));
       await chaptersStore.deleteChapter(chapterId);
       
       // Remove from local state
@@ -112,9 +122,11 @@ export function useChapters(subjectId?: string) {
   }, []);
 
   // Get a chapter by ID
-  const getChapter = useCallback(async (chapterId: string): Promise<Chapter | undefined> => {
+  const getChapter = useCallback(async (chapterId: string): Promise<Chapter> => {
     try {
-      return await chaptersStore.getChapterById(chapterId);
+      const chapter = await chaptersStore.getChapterById(chapterId);
+      if (!chapter) throw new Error(`Chapter not found: ${chapterId}`);
+      return chapter;
     } catch (err) {
       console.error('Error getting chapter:', err);
       throw err instanceof Error ? err : new Error('Failed to get chapter');

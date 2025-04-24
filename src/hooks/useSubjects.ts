@@ -3,6 +3,7 @@ import { Subject } from '@type/db.types';
 import { subjectsStore } from '@store/subjectsStore';
 import { chaptersStore } from '@store/chaptersStore';
 import { materialsStore } from '@store/materialsStore';
+import { useGoogleDriveSync } from './useGoogleDriveSync';
 
 /**
  * Hook for managing subjects in the database
@@ -12,6 +13,13 @@ export function useSubjects() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
+
+  const { deleteFileItem } = useGoogleDriveSync({
+    onSyncStatusChange: () => {},
+    onConflictDetected: () => {},
+    onSyncComplete: () => {},
+    onError: () => {},
+  });
 
   // Fetch all subjects
   const fetchSubjects = useCallback(async () => {
@@ -85,17 +93,20 @@ export function useSubjects() {
       // Delete related chapters and their materials
       for (const chapter of subjectChapters) {
         const chapterMaterials = await materialsStore.getMaterialsByChapter(chapter.id);
-        
-        // Delete all materials in the chapter
+
+        // Delete all materials in the chapter (and their drive data if applicable)
         for (const material of chapterMaterials) {
+          material.driveId && await deleteFileItem(material.driveId);
           await materialsStore.deleteMaterial(material.id);
         }
         
         // Delete the chapter
+        chapter.driveId && await deleteFileItem(chapter.driveId);
         await chaptersStore.deleteChapter(chapter.id);
       }
       
       // Delete subject
+      await getSubject(subjectId).then(s => deleteFileItem(s.driveId));
       await subjectsStore.deleteSubject(subjectId);
       
       // Remove from local state
@@ -112,9 +123,11 @@ export function useSubjects() {
   }, []);
 
   // Get a subject by ID
-  const getSubject = useCallback(async (subjectId: string): Promise<Subject | undefined> => {
+  const getSubject = useCallback(async (subjectId: string): Promise<Subject> => {
     try {
-      return await subjectsStore.getSubjectById(subjectId);
+      const subject = await subjectsStore.getSubjectById(subjectId);
+      if (!subject) throw new Error(`Subject not found: ${subjectId}`);
+      return subject
     } catch (err) {
       console.error('Error getting subject:', err);
       throw err instanceof Error ? err : new Error('Failed to get subject');

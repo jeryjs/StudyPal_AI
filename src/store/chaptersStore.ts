@@ -38,7 +38,7 @@ class ChaptersStore extends DBStore<Chapter> {
    */
   async createChapter(name: string, subjectId: string, number?: number): Promise<Chapter> {
     const timestamp = Date.now();
-    const id = slugify(`${subjectId}-${name}`, true); // Using slugify with unique=true
+    const id = slugify(`${name}-${number}`, true); // Using slugify with unique=true
     
     // If number isn't provided, calculate the next number by counting existing chapters
     let chapterNumber = number;

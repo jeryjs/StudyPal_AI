@@ -347,6 +347,22 @@ export function useGoogleDriveSync(callbacks: DriveEventCallbacks) {
     return new Blob([contentData], { type: contentType });
   }, [driveApiAction]);
 
+
+  /**
+   * Delete a file from Google Drive using its ID.
+   */
+  const deleteFileItem = useCallback(async (fileId?: string) => {
+    if (!fileId) return
+    console.log(`deleteFileItem: Deleting file with ID: ${fileId}`);
+    try {
+      await driveApiAction(() => gapi.client.drive.files.delete({ fileId }));
+      console.log(`deleteFileItem: Successfully deleted file with ID: ${fileId}`);
+    } catch (err) {
+      console.error(`deleteFileItem: Error deleting file with ID: ${fileId}`, err);
+      throw new Error(`Failed to delete file with ID: ${fileId}`);
+    }
+  }, [driveApiAction]);
+
   /**
    * List files/folders in Google Drive App Data folder using gapi
    */
@@ -703,6 +719,7 @@ export function useGoogleDriveSync(callbacks: DriveEventCallbacks) {
     restoreDatabaseFromDrive,
     // Expose file content download function
     getDriveFileContent,
+    deleteFileItem,
     // Expose pending sync trigger (optional, could be internal)
     syncPendingMaterials,
   };

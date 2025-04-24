@@ -13,9 +13,9 @@ import {
     styled,
     Typography,
     useMediaQuery,
-    useTheme,
+    useTheme
 } from '@mui/material';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 
 // Hooks
@@ -53,6 +53,15 @@ const FloatingActionButton = styled(Button)(({ theme }) => ({
     }
 }));
 
+// Styled component for the drawer header
+const DrawerHeader = styled(Box)(({ theme }) => ({
+    display: 'flex',
+    alignItems: 'center',
+    padding: theme.spacing(1, 2),
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    minHeight: '64px',
+}));
+
 // --- Main Page Component ---
 
 const ChaptersPage: React.FC = () => {
@@ -82,6 +91,7 @@ const ChaptersPage: React.FC = () => {
     // Hooks
     const { getSubject } = useSubjects();
     const { chapters, loading: chaptersLoading, error: chaptersError, createChapter, updateChapter, deleteChapter } = useChapters(subjectId || '');
+    // Only fetch materials when we have a selected chapter and need them
     const { materials, loading: materialsLoading, error: materialsError, createMaterial, updateMaterial, deleteMaterial } = useMaterials(selectedChapter?.id || '');
     // Optional: Get sync context if you want to manually trigger a sync check after adding files
     // const { backupDatabaseToDrive } = useSyncContext();
@@ -109,23 +119,7 @@ const ChaptersPage: React.FC = () => {
         }
     }, [subjectId, getSubject, navigate]);
 
-    // Auto-select first chapter when chapters load or subject changes
-    // useEffect(() => {
-    //     if (!selectedChapter && chapters.length > 0) {
-    //         // Sort chapters by number before selecting the first one
-    //         const sorted = [...chapters].sort((a, b) => a.number - b.number);
-    //         setSelectedChapter(sorted[0]);
-    //     } else if (selectedChapter && !chapters.find(c => c.id === selectedChapter.id)) {
-    //         // If selected chapter is deleted, select the first available one or null
-    //         const sorted = [...chapters].sort((a, b) => a.number - b.number);
-    //         setSelectedChapter(sorted.length > 0 ? sorted[0] : null);
-    //     }
-    // }, [chapters, selectedChapter]); // Rerun when chapters change
-
-
-    // --- Handlers ---
-
-    // Chapter Dialog Handlers
+    // --- Chapter Dialog Handlers ---
     const handleOpenChapterDialog = (chapter: Chapter | null = null) => {
         setEditingChapter(chapter);
         setChapterDialogOpen(true);
@@ -165,7 +159,7 @@ const ChaptersPage: React.FC = () => {
         }
     };
 
-    // Delete Dialog Handlers
+    // --- Delete Dialog Handlers ---
     const handleOpenDeleteDialog = (id: string, name: string, type: 'chapter' | 'material') => {
         setItemToDelete({ id, name, type });
         setDeleteDialogOpen(true);
@@ -196,7 +190,7 @@ const ChaptersPage: React.FC = () => {
         }
     };
 
-    // Material Handlers
+    // --- Material Handlers ---
     const handleViewMaterial = (material: Material) => {
         setSelectedMaterial(material);
         setMaterialViewerOpen(true);
@@ -208,7 +202,7 @@ const ChaptersPage: React.FC = () => {
         setTimeout(() => setSelectedMaterial(null), 300);
     };
 
-    // Drag and Drop Handlers
+    // --- Drag and Drop Handlers ---
     const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         e.stopPropagation();
@@ -259,8 +253,6 @@ const ChaptersPage: React.FC = () => {
                 else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') type = MaterialType.WORD;
                 else if (file.type.startsWith('video/')) type = MaterialType.VIDEO;
                 else if (file.type.startsWith('application/')) type = MaterialType.FILE;
-                else if (file.type.startsWith('text/html')) type = MaterialType.LINK;
-                else if (file.type.startsWith('application/x-www-form-urlencoded')) type = MaterialType.LINK;
                 else if (file.type.startsWith('audio/')) type = MaterialType.AUDIO;
                 else if (file.type.startsWith('application/x-ipynb+json')) type = MaterialType.JUPYTER;
 
@@ -301,15 +293,7 @@ const ChaptersPage: React.FC = () => {
         }
     }, [selectedChapter, createMaterial, setSnackbar /*, backupDatabaseToDrive */]); // Add backupDatabaseToDrive if using manual trigger
 
-    // Filter materials for selected chapter (already done in MaterialsPanel, but keep for potential future use)
-    const materialsForSelectedChapter = useMemo(() => {
-        if (!selectedChapter) return [];
-        // Ensure materials are filtered correctly if materials hook doesn't filter
-        return materials.filter(m => m.chapterId === selectedChapter.id);
-    }, [materials, selectedChapter]);
-
     // --- Render ---
-
     return (
         <Box sx={{ p: { xs: 2, sm: 3 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Header with Breadcrumb */}
@@ -359,26 +343,46 @@ const ChaptersPage: React.FC = () => {
             </Box>
 
             {/* Main Content Grid - Make it grow */}
-            <Grid container spacing={3} sx={{ flexGrow: 1,  /* Prevent double scrollbars */ }}>
-                {/* Left Column - Chapter List */}
-                <Grid size={{ xs: 12, md: 4, lg: 3 }} sx={{ height: { xs: 'auto', md: '100%' }, overflowY: { xs: 'visible', md: 'auto' } /* Allow scrolling on medium+ */ }}>
+            <Grid container spacing={3} sx={{ flexGrow: 1 }}>
+                {/* Left Column - Chapter List - Always visible */}
+                <Grid size={{ xs: 12, md: 4, lg: 3 }} sx={{ height: { xs: 'auto', md: '100%' }, overflowY: { xs: 'visible', md: 'auto' } }}>
                     <ChapterList
                         chapters={chapters}
                         selectedChapter={selectedChapter}
                         onSelectChapter={setSelectedChapter}
                         onAddChapter={() => handleOpenChapterDialog()}
-                        onEditChapter={handleOpenChapterDialog} // Pass the chapter object
+                        onEditChapter={handleOpenChapterDialog}
                         onDeleteChapter={(chapter) => handleOpenDeleteDialog(chapter.id, chapter.name, 'chapter')}
                         loading={chaptersLoading}
                         error={chaptersError}
                     />
                 </Grid>
 
-                {/* Right Column - Materials */}
-                <Grid size={{ xs: 12, md: 8, lg: 9 }} sx={{ height: { xs: 'auto', md: '100%' }, overflowY: { xs: 'visible', md: 'auto' } }}>
+                {/* Right Column - Materials - Only visible on desktop */}
+                {!isMobile && (
+                    <Grid size={{ md: 8, lg: 9 }} sx={{ height: '100%', overflowY: 'auto' }}>
+                        <MaterialsPanel
+                            selectedChapter={selectedChapter}
+                            onViewMaterial={handleViewMaterial}
+                            onDeleteMaterial={(material) => handleOpenDeleteDialog(material.id, material.name, 'material')}
+                            onDrop={handleDrop}
+                            onDragOver={handleDragOver}
+                            onDragEnter={handleDragEnter}
+                            onDragLeave={handleDragLeave}
+                            isDraggingOver={isDraggingOver}
+                            loading={materialsLoading && !!selectedChapter}
+                            error={materialsError}
+                            uploadProgress={uploadProgress}
+                            key={selectedChapter?.id || 'no-chapter'}
+                        />
+                    </Grid>
+                )}
+
+                {/* On mobile, MaterialsPanel will handle its own Drawer */}
+                {isMobile && (
                     <MaterialsPanel
+                        key={selectedChapter?.id || 'no-chapter'}
                         selectedChapter={selectedChapter}
-                        materials={materialsForSelectedChapter} // Pass filtered materials
                         onViewMaterial={handleViewMaterial}
                         onDeleteMaterial={(material) => handleOpenDeleteDialog(material.id, material.name, 'material')}
                         onDrop={handleDrop}
@@ -389,8 +393,9 @@ const ChaptersPage: React.FC = () => {
                         loading={materialsLoading && !!selectedChapter}
                         error={materialsError}
                         uploadProgress={uploadProgress}
+                        onClose={() => setSelectedChapter(null)}
                     />
-                </Grid>
+                )}
             </Grid>
 
             {/* Floating Action Button for Mobile */}
@@ -418,32 +423,35 @@ const ChaptersPage: React.FC = () => {
                 onClose={handleCloseDeleteDialog}
                 onConfirm={handleConfirmDelete}
                 itemName={itemToDelete?.name || ''}
-                itemType={itemToDelete?.type || 'item'} // Use generic 'item' if type is missing
+                itemType={itemToDelete?.type || 'item'}
                 warningMessage={itemToDelete?.type === 'chapter' ? 'Warning: This will also delete all materials within this chapter!' : undefined}
             />
 
-            <MaterialViewerDialog
-                open={materialViewerOpen}
-                onClose={handleCloseMaterialViewer}
-                material={selectedMaterial}
-                chapterId={selectedChapter?.id || ''}
-            />
+            {/* Ensure MaterialViewerDialog is always above the drawer */}
+            <Box sx={{ position: 'fixed', zIndex: (theme) => theme.zIndex.drawer + 10, inset: 0, pointerEvents: 'none' }}>
+                <Box sx={{ pointerEvents: 'auto' }}>
+                    <MaterialViewerDialog
+                        open={materialViewerOpen}
+                        onClose={handleCloseMaterialViewer}
+                        material={selectedMaterial}
+                    />
+                </Box>
+            </Box>
 
             {/* Snackbar for notifications */}
             <Snackbar
                 open={snackbar.open}
-                autoHideDuration={6000} // Slightly longer duration
-                onClose={() => setSnackbar(prev => ({ ...prev, open: false }))} // Use functional update
+                autoHideDuration={5000}
+                onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             >
-                {/* Wrapping Alert in a Box prevents Snackbar width issues */}
                 <Box>
                     <Alert
                         severity={snackbar.severity}
                         onClose={() => setSnackbar(prev => ({ ...prev, open: false }))}
                         sx={{ width: '100%' }}
                         variant="filled"
-                        elevation={6} // Add elevation like Material Design spec
+                        elevation={6}
                     >
                         {snackbar.message}
                     </Alert>

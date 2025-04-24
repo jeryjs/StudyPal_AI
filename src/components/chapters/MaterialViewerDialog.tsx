@@ -53,7 +53,7 @@ const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({ open, onClose, ma
             setIsLoading(true);
             setContent(null);
 
-            if (material.type === MaterialType.LINK) {
+            if (material.type === MaterialType.LINK || material.type === MaterialType.TEXT) {
                 contentBlob.text()
                     .then(text => {
                         if (isMounted) {
@@ -72,7 +72,6 @@ const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({ open, onClose, ma
                         }
                     });
             } else {
-                // For non-text types, use the objectUrl
                 setContent(objectUrl);
                 setIsLoading(false);
             }
@@ -95,11 +94,11 @@ const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({ open, onClose, ma
     }, [objectUrl]);
 
     const renderPreviewContent = () => {
-        if (!content && !material.driveId) return <Alert severity="error" children="No content available. This material doesnt seemed to be synced to your G-Drive." />; // Show error if no content and no driveId
-
         if (isLoading) return <CircularProgress color="inherit" />;
-
-        if (!content || !objectUrl) return <Alert severity="error" children="Failed to load content." />;
+        
+        if (!content && !material.driveId) return <Alert severity="error" children="No content available. This material doesnt seemed to be synced to your G-Drive." />;
+        
+        if (!content) return <Alert severity="error" children="Failed to load content." />;
 
         switch (material.type) {
             case MaterialType.IMAGE: return <Box component="img" src={content} alt={material.name} sx={{ display: 'block', maxWidth: '95vw', maxHeight: '90vh', objectFit: 'contain' }} />;
@@ -145,10 +144,9 @@ interface MaterialViewerDialogProps {
     open: boolean;
     material: Material | null;
     onClose: () => void;
-    chapterId: string | null;
 }
 
-const MaterialViewerDialog: React.FC<MaterialViewerDialogProps> = ({ open, material, onClose, chapterId }) => {
+const MaterialViewerDialog: React.FC<MaterialViewerDialogProps> = ({ open, material, onClose }) => {
     const [contentBlob, setContentBlob] = useState<Blob | null>(null);
 
     const handleClose = () => {

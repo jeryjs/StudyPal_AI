@@ -1,3 +1,4 @@
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArticleIcon from '@mui/icons-material/Article'; // Word
 import AudioFileIcon from '@mui/icons-material/AudioFile';
 import CodeIcon from '@mui/icons-material/Code'; // Jupyter
@@ -10,17 +11,20 @@ import MoreVertIcon from '@mui/icons-material/MoreVert'; // Import MoreVertIcon
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
-import { Masonry } from '@mui/lab'; // Import Masonry
+import SyncedIcon from '@mui/icons-material/CloudDone'; // Synced icon
+import NotSyncIcon from '@mui/icons-material/CloudOff'; // Not Synced icon
 import {
     Alert,
     alpha,
-    Box, // Import Fade for transition
+    Box,
+    Fade,
     Button,
     Card,
     CardActionArea,
     CardContent,
     CircularProgress,
     Divider,
+    Drawer,
     IconButton,
     LinearProgress,
     ListItemIcon,
@@ -30,9 +34,11 @@ import {
     Paper,
     Snackbar,
     styled,
-    Typography
+    Typography,
+    Grid
 } from '@mui/material';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTheme, useMediaQuery } from '@mui/material';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useSyncContext } from '@contexts/SyncContext';
 import { useMaterials } from '@hooks/useMaterials';
@@ -83,6 +89,8 @@ const OverlayDropZone = styled(Box, {
 
 // Styled Card for each Material Item
 const MaterialCard = styled(Card)(({ theme }) => ({
+    minWidth: 200,
+    maxWidth: 450,
     background: alpha(theme.palette.background.paper, 0.7),
     backdropFilter: 'blur(8px)',
     border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
@@ -119,11 +127,11 @@ const CardBottomInfo = styled(Box)(({ theme }) => ({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: theme.spacing(1, 2), // Consistent padding
+    padding: theme.spacing(1, 2),
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    // background: alpha(theme.palette.background.paper, 0.5), // Optional subtle background
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    background: alpha(theme.palette.background.paper, 0.5), // Subtle background
 }));
 
 // New styled component for content loading overlay
@@ -164,7 +172,6 @@ export const renderMaterialIcon = (type: MaterialType, sx?: object): React.React
 
 interface MaterialsPanelProps {
     selectedChapter: Chapter | null;
-    materials: Material[];
     onViewMaterial: (material: Material) => void;
     onDeleteMaterial: (material: Material) => void;
     onDrop: (event: React.DragEvent<HTMLDivElement>) => void;
@@ -175,11 +182,20 @@ interface MaterialsPanelProps {
     loading: boolean;
     error: Error | null;
     uploadProgress: Record<string, number>;
+    open?: boolean; // For mobile drawer
+    onClose?: () => void; // For mobile drawer
 }
+
+const DrawerHeader = styled(Box)(({ theme }) => ({
+    display: 'flex',
+    alignItems: 'center',
+    padding: theme.spacing(1, 2),
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    minHeight: '64px',
+}));
 
 const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     selectedChapter,
-    materials,
     onViewMaterial,
     onDeleteMaterial,
     onDrop,
@@ -189,30 +205,25 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     isDraggingOver,
     loading,
     error,
-    uploadProgress
+    uploadProgress,
+    open = true,
+    onClose
 }) => {
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
     const [menuMaterial, setMenuMaterial] = useState<Material | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null); // Ref for file input
 
     // Track content loading state for each material
     const [loadingContent, setLoadingContent] = useState<Record<string, boolean>>({});
-    // Track which materials have had their content prefetched
-    const [prefetchedContent, setPrefetchedContent] = useState<Record<string, boolean>>({});
     // State for Snackbar
-    const [snackbar, setSnackbar] = useState<{ open: boolean; message: string }>({
-        open: false,
-        message: '',
-    });
+    const [snackbar, setSnackbar] = useState({ open: false, message: '' });
 
     // Get hooks for content fetching
+    const { materials, loading: materialsLoading, error: materialsError } = useMaterials(selectedChapter?.id || '');
     const { getDriveFileContent, isInitialized: isSyncReady } = useSyncContext();
     const { cacheMaterialContent } = useMaterials(selectedChapter?.id || '');
-
-    // Reset prefetched state when chapter changes
-    useEffect(() => {
-        setPrefetchedContent({});
-    }, [selectedChapter?.id]);
 
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, material: Material) => {
         event.stopPropagation(); // Prevent card click
@@ -289,7 +300,6 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
             onViewMaterial(material);
         } finally {
             setLoadingContent(prev => ({ ...prev, [material.id]: false }));
-            setPrefetchedContent(prev => ({ ...prev, [material.id]: true }));
             setSnackbar({ ...snackbar, open: false });
         }
     }, [onViewMaterial, getDriveFileContent, cacheMaterialContent, isSyncReady, materials, formatBytes, snackbar]);
@@ -321,158 +331,203 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     }, [materials, uploadProgress]);
 
 
-    return (
-        <MaterialsContainer
-            // Add drag handlers to the main container to detect drag enter/leave for the overlay
-            onDragEnter={onDragEnter}
-            onDragLeave={onDragLeave}
-            onDragOver={onDragOver} // Need onDragOver on the container too
-            onDrop={onDrop} // Handle drop on the container if it happens outside the overlay somehow
-        >
-            {/* Overlay Drop Zone */}
-            <OverlayDropZone isDraggingOver={isDraggingOver} onDrop={onDrop} onDragOver={onDragOver}>
-                <UploadFileIcon sx={{ fontSize: 60, mb: 2, color: 'primary.main' }} />
-                <Typography variant="h5" color="text.primary">Drop files here</Typography>
-                <Typography variant="body1" color="text.secondary">to add them to "{selectedChapter?.name}"</Typography>
-            </OverlayDropZone>
-
-            {/* Main Content Area */}
-            <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 0.5 /* Add slight padding for Masonry items */ }}>
-                <Typography variant="h6" gutterBottom sx={{ mb: 2, ml: 1 }}>
-                    {selectedChapter ? `Materials for: ${selectedChapter.name}` : 'Select a Chapter'}
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-
-                {loading && !!selectedChapter && (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                        <CircularProgress />
-                    </Box>
-                )}
-
-                {error && (
-                    <Alert severity="error" sx={{ m: 1 }}>
-                        Failed to load materials: {error.message}
-                    </Alert>
-                )}
-
-                {!loading && selectedChapter && displayItems.length === 0 && (
-                    <Box sx={{ textAlign: 'center', py: 4 }}>
-                        <Typography color="text.secondary" gutterBottom>
-                            No materials added yet.
-                        </Typography>
-                        <Button
-                            variant="outlined"
-                            startIcon={<UploadFileIcon />}
-                            onClick={handleFileInputClick}
-                            sx={{ mt: 1 }}
-                        >
-                            Upload First Material
-                        </Button>
-                    </Box>
-                )}
-
-                {!loading && !error && selectedChapter && displayItems.length > 0 && (
-                    <Masonry columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={2}>
-                        {displayItems.map((item) => (
-                            <MaterialCard key={item.id} elevation={1}>  {/* Render differently if uploading - use proper type guard */}
-                                {'isUploading' in item ? (
-                                    <CardContent sx={{ textAlign: 'center', opacity: 0.7 }}>
-                                        <CircularProgress variant="determinate" value={item.progress} sx={{ mb: 1 }} />
-                                        <Typography variant="body2" noWrap sx={{ mb: 0.5 }}>Uploading {item.name}</Typography>
-                                        <LinearProgress variant="determinate" value={item.progress} sx={{ height: 6, borderRadius: 3 }} />
-                                    </CardContent>
-                                ) : (
-                                    <>
-                                        <CardMenuButton
-                                            aria-label="material options"
-                                            aria-controls={Boolean(anchorEl) ? `material-menu-${item.id}` : undefined}
-                                            aria-haspopup="true"
-                                            aria-expanded={Boolean(anchorEl) && menuMaterial?.id === item.id ? 'true' : undefined}
-                                            onClick={(e) => handleMenuOpen(e, item)}
-                                            size="small"
-                                        >
-                                            <MoreVertIcon fontSize="small" />
-                                        </CardMenuButton>
-                                        <CardTopActionArea onClick={() => handleViewMaterial(item)}>
-                                            <CardContent sx={{ textAlign: 'center' }}>
-                                                {renderMaterialIcon(item.type)}
-                                                <Typography variant="body1" fontWeight={500} noWrap gutterBottom>
-                                                    {item.name}
-                                                </Typography>
-                                            </CardContent>
-
-                                            {/* Content loading overlay */}
-                                            {loadingContent[item.id] && (
-                                                <ContentLoadingOverlay>
-                                                    <CircularProgress size={36} />
-                                                </ContentLoadingOverlay>
-                                            )}
-                                        </CardTopActionArea>
-                                        <CardBottomInfo>
-                                            <Typography variant="caption" color="text.secondary">
-                                                {formatBytes(item.size || 0)}
-                                            </Typography>
-                                            {item.progress !== undefined && item.progress < 100 && item.progress > 0 && (
-                                                <Box sx={{ width: '40%' }}>
-                                                    <LinearProgress variant="determinate" value={item.progress} sx={{ height: 4, borderRadius: 2 }} />
-                                                </Box>
-                                            )}
-                                        </CardBottomInfo>
-                                    </>
-                                )}
-                            </MaterialCard>
-                        ))}
-                    </Masonry>
-                )}
-            </Box>
-
-            {/* Hidden File Input */}
-            <input
-                type="file"
-                ref={fileInputRef}
-                multiple
-                hidden
-                onChange={handleFileInputChange}
-                aria-hidden="true" // Hide from accessibility tree
-            />
-
-            {/* Material Action Menu */}
-            <Menu
-                id={`material-menu-${menuMaterial?.id}`}
-                anchorEl={anchorEl}
-                open={Boolean(anchorEl) && !!menuMaterial}
-                onClose={handleMenuClose}
-                MenuListProps={{
-                    'aria-labelledby': 'material options',
-                }}
-                anchorOrigin={{
-                    vertical: 'top',
-                    horizontal: 'right',
-                }}
-                transformOrigin={{
-                    vertical: 'top',
-                    horizontal: 'right',
+    // If mobile, render inside a Drawer
+    if (isMobile) {
+        return (
+            <Drawer
+                anchor="right"
+                open={!!open && !!selectedChapter}
+                onClose={onClose}
+                sx={{
+                    '& .MuiDrawer-paper': {
+                        width: '100%',
+                        maxWidth: { xs: '100%', sm: '450px' },
+                        boxSizing: 'border-box',
+                    },
+                    display: { md: 'none' },
+                    zIndex: theme.zIndex.drawer + 1,
                 }}
             >
-                {/* Add other actions like Edit, Download later */}
-                <MenuItem onClick={handleDeleteClick}>
-                    <ListItemIcon>
-                        <DeleteIcon fontSize="small" color="error" />
-                    </ListItemIcon>
-                    <ListItemText primary="Delete" primaryTypographyProps={{ color: 'error.main' }} />
-                </MenuItem>
-            </Menu>
+                <DrawerHeader>
+                    <IconButton edge="start" onClick={onClose} aria-label="back">
+                        <ArrowBackIcon />
+                    </IconButton>
+                    <Typography variant="h5" sx={{ ml: 1, flexGrow: 1 }}>
+                        {selectedChapter?.name || 'Chapter Materials'}
+                    </Typography>
+                </DrawerHeader>
+                <Box sx={{ height: 'calc(100% - 64px)', overflow: 'auto' }}>
+                    {/* Render the panel content as usual, but not inside a Paper */}
+                    {/* ...existing code for the panel content, but without MaterialsContainer... */}
+                    {/* We'll move the main content rendering into a helper below for reuse */}
+                    {renderPanelContent()}
+                </Box>
+            </Drawer>
+        );
+    }
 
-            {/* Snackbar for loading message */}
-            <Snackbar
-                open={snackbar.open}
-                autoHideDuration={3000} // Adjust as needed
-                onClose={handleSnackbarClose}
-                message={snackbar.message}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            />
+    // Desktop: render as before
+    return (
+        <MaterialsContainer
+            onDragEnter={onDragEnter}
+            onDragLeave={onDragLeave}
+            onDragOver={onDragOver}
+            onDrop={onDrop}
+        >
+            {renderPanelContent()}
         </MaterialsContainer>
     );
+
+    // Helper to render the main panel content (to avoid duplication)
+    function renderPanelContent() {
+        return (
+            <>
+                {/* Overlay Drop Zone */}
+                <OverlayDropZone isDraggingOver={isDraggingOver} onDrop={onDrop} onDragOver={onDragOver}>
+                    <UploadFileIcon sx={{ fontSize: 60, mb: 2, color: 'primary.main' }} />
+                    <Typography variant="h5" color="text.primary">Drop files here</Typography>
+                    <Typography variant="body1" color="text.secondary">to add them to "{selectedChapter?.name}"</Typography>
+                </OverlayDropZone>
+
+                {/* Main Content Area */}
+                <Fade in={true} timeout={500}>
+                    <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 0.5 }}>
+                        <Typography variant="h6" gutterBottom sx={{ mb: 2, ml: 1 }}>
+                            {selectedChapter ? `Materials for: ${selectedChapter.name}` : 'Select a Chapter'}
+                        </Typography>
+                        <Divider sx={{ mb: 2 }} />
+
+                        {loading && !!selectedChapter && (
+                            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                                <CircularProgress />
+                            </Box>
+                        )}
+
+                        {error && (
+                            <Alert severity="error" sx={{ m: 1 }}>
+                                Failed to load materials: {error.message}
+                            </Alert>
+                        )}
+
+                        {selectedChapter && displayItems.length === 0 && (
+                            <Box sx={{ textAlign: 'center', py: 4 }}>
+                                <Typography color="text.secondary" gutterBottom>
+                                    No materials added yet.
+                                </Typography>
+                                <Button
+                                    variant="outlined"
+                                    startIcon={<UploadFileIcon />}
+                                    onClick={handleFileInputClick}
+                                    sx={{ mt: 1 }}
+                                >
+                                    Upload First Material
+                                </Button>
+                            </Box>
+                        )}
+
+                        {!loading && !error && selectedChapter && displayItems.length > 0 && (
+                            <Grid container columns={{ xs: 1, sm: 2, md: 3, lg: 4 }} spacing={2}>
+                                {displayItems.map((item) => (
+                                    <MaterialCard key={item.id} elevation={1}>  {/* Render differently if uploading - use proper type guard */}
+                                        {'isUploading' in item ? (
+                                            <CardContent sx={{ textAlign: 'center', opacity: 0.7 }}>
+                                                <CircularProgress variant="determinate" value={item.progress} sx={{ mb: 1 }} />
+                                                <Typography variant="body2" noWrap sx={{ mb: 0.5 }}>Uploading {item.name}</Typography>
+                                                <LinearProgress variant="determinate" value={item.progress} sx={{ height: 6, borderRadius: 3 }} />
+                                            </CardContent>
+                                        ) : (
+                                            <>
+                                                <CardMenuButton
+                                                    aria-label="material options"
+                                                    aria-controls={Boolean(anchorEl) ? `material-menu-${item.id}` : undefined}
+                                                    aria-haspopup="true"
+                                                    aria-expanded={Boolean(anchorEl) && menuMaterial?.id === item.id ? 'true' : undefined}
+                                                    onClick={(e) => handleMenuOpen(e, item)}
+                                                    size="small"
+                                                >
+                                                    <MoreVertIcon fontSize="small" />
+                                                </CardMenuButton>
+                                                <CardTopActionArea onClick={() => handleViewMaterial(item)}>
+                                                    <CardContent sx={{ textAlign: 'center' }}>
+                                                        {renderMaterialIcon(item.type)}
+                                                        <Typography variant="body1" fontWeight={500} noWrap gutterBottom>
+                                                            {item.name}
+                                                        </Typography>
+                                                    </CardContent>
+
+                                                    {/* Content loading overlay */}
+                                                    {loadingContent[item.id] && (
+                                                        <ContentLoadingOverlay>
+                                                            <CircularProgress size={36} />
+                                                        </ContentLoadingOverlay>
+                                                    )}
+                                                </CardTopActionArea>
+                                                <CardBottomInfo>
+                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                                        <Typography variant="caption" color="text.secondary">{formatBytes(item.size || 0)}</Typography>
+                                                        {item.driveId ? <SyncedIcon fontSize="small" color="primary" sx={{ ml: 1 }} /> : (item.content?.data && <NotSyncIcon fontSize="small" color="error" sx={{ ml: 1 }} />)}
+                                                    </Box>
+                                                    {item.progress !== undefined && item.progress < 100 && item.progress > 0 && (
+                                                        <LinearProgress variant="determinate" value={item.progress} sx={{ height: 4, borderRadius: 2 }} />
+                                                    )}
+                                                </CardBottomInfo>
+                                            </>
+                                        )}
+                                    </MaterialCard>
+                                ))}
+                            </Grid>
+                        )}
+                    </Box>
+                </Fade>
+
+                {/* Hidden File Input */}
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    multiple
+                    hidden
+                    onChange={handleFileInputChange}
+                    aria-hidden="true" // Hide from accessibility tree
+                />
+
+                {/* Material Action Menu */}
+                <Menu
+                    id={`material-menu-${menuMaterial?.id}`}
+                    anchorEl={anchorEl}
+                    open={Boolean(anchorEl) && !!menuMaterial}
+                    onClose={handleMenuClose}
+                    MenuListProps={{
+                        'aria-labelledby': 'material options',
+                    }}
+                    anchorOrigin={{
+                        vertical: 'top',
+                        horizontal: 'right',
+                    }}
+                    transformOrigin={{
+                        vertical: 'top',
+                        horizontal: 'right',
+                    }}
+                >
+                    {/* Add other actions like Edit, Download later */}
+                    <MenuItem onClick={handleDeleteClick}>
+                        <ListItemIcon>
+                            <DeleteIcon fontSize="small" color="error" />
+                        </ListItemIcon>
+                        <ListItemText primary="Delete" primaryTypographyProps={{ color: 'error.main' }} />
+                    </MenuItem>
+                </Menu>
+
+                {/* Snackbar for loading message */}
+                <Snackbar
+                    open={snackbar.open}
+                    autoHideDuration={3000} // Adjust as needed
+                    onClose={handleSnackbarClose}
+                    message={snackbar.message}
+                    anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+                />
+            </>
+        );
+    }
 };
 
 export default MaterialsPanel;

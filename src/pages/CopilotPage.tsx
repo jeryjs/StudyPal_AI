@@ -71,7 +71,7 @@ const contextCategories: ContextCategory[] = [
 const CopilotPage: React.FC = () => {
     const theme = useTheme();
     const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
-    const [sidebarWidth] = useState(280); // Fixed width for the sidebar
+    const [sidebarWidth, setSidebarWidth] = useState(280); // Fixed width for the sidebar
 
     const toggleCategory = (categoryId: string) => {
         setExpandedCategories(prev => ({
@@ -160,10 +160,28 @@ const CopilotPage: React.FC = () => {
                 {/* Input is handled by the Chatbar component */}
             </Box>
 
+            <IconButton
+                onClick={() => setSidebarWidth(sidebarWidth ? 0 : 280)} // Toggle sidebar width
+                sx={{ 
+                    position: 'absolute', 
+                    right: 16, 
+                    bottom: 16, 
+                    zIndex: 10000003, 
+                    backgroundColor: theme.palette.background.paper, 
+                    boxShadow: theme.shadows[2], 
+                    borderRadius: '50%', 
+                    '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.1) } 
+                }}
+            >
+                <AttachFileIcon />
+            </IconButton>
+
             {/* Context Sidebar */}
             <Drawer
-                variant="permanent"
+                variant="persistent"
                 anchor="right"
+                ModalProps={{ keepMounted: true }} // Better open performance on mobile
+                open={!!sidebarWidth}
                 sx={{
                     width: sidebarWidth,
                     flexShrink: 0,

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Box, TextField, IconButton, Grow, Paper, styled, useTheme, alpha, Zoom, SxProps, Theme } from '@mui/material';
-import ChatIcon from '@mui/icons-material/SmartToyOutlined'; // Placeholder: Replace with custom Siri-like icon/SVG
+import React, { useState, useEffect, useRef } from 'react';
+import { Box, TextField, IconButton, Paper, styled, useTheme, alpha } from '@mui/material';
+import ChatIcon from '@mui/icons-material/SmartToyOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 import { useNavigate, useLocation, useSearchParams } from 'react-router';
@@ -8,108 +8,79 @@ import CopilotPage from '@pages/CopilotPage';
 
 // --- Styled Components ---
 
-const ChatbarContainer = styled(Box, {
-    shouldForwardProp: (prop) => prop !== 'isExpanded'
-})<{ isExpanded?: boolean }>(({ theme, isExpanded }) => ({
+const MorphContainer = styled(Box)<{ expanded: boolean }>(({ theme, expanded }) => ({
     position: 'fixed',
-    bottom: isExpanded ? 0 : theme.spacing(3),
-    width: isExpanded ? '100%' : '360px',
-    height: isExpanded ? '100vh' : 'auto',
-    transition: theme.transitions.create(['width', 'height', 'bottom', 'border-radius', 'background-color', 'backdrop-filter', 'margin', 'left', 'transform'], { 
-        easing: theme.transitions.easing.easeInOut,
-        duration: theme.transitions.duration.complex,
-    }),
+    bottom: 0,
+    left: 0,
+    right: 0,
+    maxWidth: expanded ? 900 : 360,
+    margin: '0 auto',
+    borderRadius: expanded ? 24 : 24,
+    boxShadow: expanded ? theme.shadows[8] : theme.shadows[2],
+    transition: 'all 400ms cubic-bezier(.77,0,.18,1)',
+    overflow: 'hidden',
     display: 'flex',
     flexDirection: 'column',
-    backgroundColor: isExpanded ? alpha(theme.palette.background.default, 0.95) : 'transparent',
-    backdropFilter: isExpanded ? 'blur(10px)' : 'none',
-    WebkitBackdropFilter: isExpanded ? 'blur(10px)' : 'none',
-    transformOrigin: 'bottom', // Key for upward growth
 }));
 
-const ChatbarPaper = styled(Paper, {
-    shouldForwardProp: (prop) => prop !== 'isExpanded'
-})<{ isExpanded?: boolean }>(({ theme, isExpanded }) => ({
+const MorphInputRow = styled(Paper)<{ expanded: boolean }>(({ theme, expanded }) => ({
     display: 'flex',
     alignItems: 'center',
-    padding: theme.spacing(1, 1, 1, 2.5),
-    ...(!isExpanded && {
-        backgroundColor: alpha(theme.palette.background.paper, 0.6),
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
-        boxShadow: theme.shadows[1],
-        borderRadius: `24px`,
-    }),
-    ...(isExpanded && {
-        backgroundColor: 'transparent',
-        backdropFilter: 'none',
-        WebkitBackdropFilter: 'none',
-        border: 'none',
-        boxShadow: 'none',
-        borderRadius: 0,
-        borderBottom: `1px solid ${theme.palette.divider}`,
-        padding: theme.spacing(1.5, 2),
-    }),
-    width: '100%',
-    transition: theme.transitions.create(['background-color', 'border-radius', 'backdrop-filter', 'box-shadow', 'border', 'padding'], {
-        easing: theme.transitions.easing.easeInOut,
-        duration: theme.transitions.duration.complex,
-    }),
+    boxShadow: 'none',
+    border: 'none',
+    padding: expanded ? theme.spacing(2, 2, 1, 2) : theme.spacing(1.5, 2),
+    transition: 'padding 400ms cubic-bezier(.77,0,.18,1)',
 }));
 
-const ChatInput = styled(TextField)(({ theme }) => ({
-    flexGrow: 1,
-    marginRight: theme.spacing(1),
+const MorphInput = styled(TextField)(({ theme }) => ({
+    flex: 1,
     '& .MuiOutlinedInput-root': {
-        borderRadius: `calc(${theme.shape.borderRadius}px * 1.5)`,
-        transition: theme.transitions.create(['background-color', 'box-shadow']),
-        backgroundColor: 'transparent',
-        '& fieldset': {
-            border: 'none',
-        },
-        '&:hover': {
-            backgroundColor: alpha(theme.palette.action.hover, 0.05),
-        },
-        '&.Mui-focused': {
-            backgroundColor: alpha(theme.palette.action.selected, 0.08),
-            boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.3)}`,
-        },
-        input: {
-            color: theme.palette.text.primary,
-            padding: theme.spacing(1.5, 2),
-            fontSize: '0.95rem',
-        },
-        '& ::placeholder': {
-            color: theme.palette.text.secondary,
-            opacity: 0.8,
-        },
+        borderRadius: 20,
+        background: 'transparent',
+        fontSize: '1rem',
+        '& fieldset': { border: 'none' },
+        '& input': { color: theme.palette.text.primary },
+        '&::placeholder': { color: theme.palette.text.secondary },
     },
+}));
+
+const MorphCopilotPage = styled(Box)<{ show: boolean }>(({ show }) => ({
+    flex: 1,
+    opacity: show ? 1 : 0,
+    transform: show ? 'translateY(0)' : 'translateY(24px)',
+    transition: 'opacity 400ms cubic-bezier(.77,0,.18,1), transform 400ms cubic-bezier(.77,0,.18,1)',
 }));
 
 // --- Chatbar Component ---
 interface ChatbarProps {
-  navbarWidth: number;
+    navbarWidth?: number;
 }
 
 const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
+    const theme = useTheme();
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();
-    const theme = useTheme();
     const [inputValue, setInputValue] = useState('');
+    const inputRef = useRef<HTMLInputElement>(null);
 
     const isExpanded = location.pathname === '/copilot';
     const currentPage = searchParams.get('page') || '';
 
+    useEffect(() => {
+        if (isExpanded && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isExpanded]);
+
     // Handle keyboard events (Escape key for closing)
-    React.useEffect(() => {
+    useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && isExpanded) {
-                navigate(currentPage);
+                if (currentPage) navigate(currentPage);
+                else navigate(-1);
             }
         };
-        
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isExpanded, navigate, currentPage]);
@@ -127,82 +98,47 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
         else navigate(-1);
     };
 
-    const handleSend = (e: React.MouseEvent | React.FormEvent) => {
+    const handleSend = (e: React.FormEvent) => {
         e.preventDefault();
         if (inputValue.trim()) {
-            console.log('Sending message:', inputValue);
             // TODO: Implement actual message sending logic
             setInputValue('');
         }
     };
 
     return (
-        <ChatbarContainer isExpanded={isExpanded} sx={{ left: navbarWidth, transform: isExpanded ? 'none' : `translateX(calc((100vw - ${navbarWidth}) / 2 - 50%))` }}>
-            {/* Expanded Content Area */}
-            {isExpanded && (
-                <Zoom in={isExpanded} style={{ transitionDelay: isExpanded ? '300ms' : '0ms' }}>
-                    <Box sx={{ flexGrow: 1, overflowY: 'auto', width: '80%', position: 'relative' }}>
-                        <CopilotPage /> 
-                        {/* CopilotPage content is rendered by the Router here */}
-                        {/* Add padding or container if CopilotPage doesn't handle it */}
-                    </Box>
-                </Zoom>
-            )}
-
-            {/* Input Area (Collapsed) */}
-            <Grow
-                in={!isExpanded}
-                mountOnEnter
-                unmountOnExit
-                style={{ transformOrigin: 'bottom center' }}
-                timeout={500}
-            >
-                 <ChatbarPaper elevation={0} isExpanded={false}>
-                    {/* TODO: Replace ChatIcon with a custom SVG icon that looks like the Siri logo */}
-                    <ChatIcon sx={{ mr: 1.5, ml: 0.5, color: theme.palette.text.secondary }} />
-                    <Box component="form" onSubmit={handleSend} sx={{ display: 'flex', flexGrow: 1, alignItems: 'center' }}>
-                        <ChatInput
-                            variant="outlined"
-                                placeholder="Chat with Study-Pal Copilot..."
-                            fullWidth
-                            onFocus={handleFocus}
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            autoComplete="off"
-                        />
-                        {/* Send button is hidden when collapsed */}
-                    </Box>
-                </ChatbarPaper>
-            </Grow>
-
-            {/* Input area when expanded */}
-            {isExpanded && (
-                <ChatbarPaper elevation={0} isExpanded={true}>
-                    <IconButton
-                        onClick={handleClose}
-                        size="small"
-                        sx={{ mr: 1, color: theme.palette.text.secondary }}
-                        aria-label="Close Copilot"
-                    >
+        <MorphContainer expanded={isExpanded} style={{ left: navbarWidth }}>
+            <MorphCopilotPage show={isExpanded}>
+                {isExpanded && <CopilotPage />}
+                {/* CopilotPage content is rendered by the Router here */}
+                {/* Add padding or container if CopilotPage doesn't handle it */}
+            </MorphCopilotPage>
+            <MorphInputRow expanded={isExpanded} elevation={0}>
+                {!isExpanded && (
+                    <ChatIcon sx={{ color: theme.palette.text.secondary, mr: 1 }} />
+                )}
+                {isExpanded && (
+                    <IconButton onClick={handleClose} size="small" sx={{ color: theme.palette.text.secondary, mr: 1 }}>
                         <CloseIcon />
                     </IconButton>
-                    <Box component="form" onSubmit={handleSend} sx={{ display: 'flex', flexGrow: 1, alignItems: 'center' }}>
-                        <ChatInput
-                            variant="outlined"
-                            placeholder="Ask Copilot anything..."
-                            fullWidth
-                            value={inputValue}
-                            onChange={(e) => setInputValue(e.target.value)}
-                            autoComplete="off"
-                            autoFocus // Focus input when expanded
-                        />
-                        <IconButton type="submit" color="primary" aria-label="Send message" disabled={!inputValue.trim()}>
-                            <SendIcon />
-                        </IconButton>
-                    </Box>
-                </ChatbarPaper>
-            )}
-        </ChatbarContainer>
+                )}
+                <form onSubmit={handleSend} style={{ flex: 1, display: 'flex' }}>
+                    <MorphInput
+                        inputRef={inputRef}
+                        variant="outlined"
+                        placeholder={isExpanded ? 'Ask Copilot anything...' : 'Chat with Study-Pal Copilot...'}
+                        value={inputValue}
+                        onFocus={handleFocus}
+                        onChange={e => setInputValue(e.target.value)}
+                        autoComplete="off"
+                        fullWidth
+                    />
+                    <IconButton type="submit" color="primary" aria-label="Send message" disabled={!inputValue.trim()}>
+                        <SendIcon />
+                    </IconButton>
+                </form>
+            </MorphInputRow>
+        </MorphContainer>
     );
 };
 

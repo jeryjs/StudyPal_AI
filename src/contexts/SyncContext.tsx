@@ -146,21 +146,20 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
           await materialsStore.updateMaterial({ id: material.id, syncStatus: SyncStatus.UP_TO_DATE });
           continue;
         }
+
+        // Set material to UPLOADING state
+        await materialsStore.updateMaterial({ id: material.id, syncStatus: SyncStatus.SYNCING_UP });
+
         // Upload to cloud
-        const folderPath = `${material.chapterId}`;
         const fileId = await cloudStorage.uploadFile({
           file: material.content.data,
           name: material.id,
-          folderPath,
+          folderPath: material.chapterId,
           mimeType: material.content.mimeType
         });
+
         // Update local material with driveId/cloudId and sync status
-        await materialsStore.updateMaterial({
-          id: material.id,
-          driveId: fileId,
-          syncStatus: SyncStatus.UP_TO_DATE,
-          lastModified: Date.now()
-        });
+        await materialsStore.updateMaterial({ id: material.id, driveId: fileId, syncStatus: SyncStatus.UP_TO_DATE });
         uploadCount++;
       } catch (err) {
         console.error(`syncPendingMaterials: Failed to sync material ${material.id}:`, err);

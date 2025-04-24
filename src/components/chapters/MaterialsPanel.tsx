@@ -34,6 +34,7 @@ import {
     Paper,
     Snackbar,
     styled,
+    Tooltip,
     Typography,
     useMediaQuery,
     useTheme
@@ -50,7 +51,6 @@ import { formatBytes } from '@utils/utils';
 // Keep MaterialsContainer, adjust padding/minHeight if needed
 const MaterialsContainer = styled(Paper)(({ theme }) => ({
     borderRadius: theme.shape.borderRadius * 1.5,
-    padding: theme.spacing(3),
     backgroundColor: alpha(theme.palette.background.paper, 0.6),
     height: '100%',
     minHeight: '360px',
@@ -191,10 +191,7 @@ interface MaterialsPanelProps {
     onDragEnter: (event: React.DragEvent<HTMLDivElement>) => void;
     onDragLeave: (event: React.DragEvent<HTMLDivElement>) => void;
     isDraggingOver: boolean;
-    loading: boolean;
-    error: Error | null;
     uploadProgress: Record<string, number>;
-    open?: boolean; // For mobile drawer
     onClose?: () => void; // For mobile drawer
 }
 
@@ -215,10 +212,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     onDragEnter,
     onDragLeave,
     isDraggingOver,
-    loading,
-    error,
     uploadProgress,
-    open = true,
     onClose
 }) => {
     const theme = useTheme();
@@ -233,7 +227,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     const [snackbar, setSnackbar] = useState({ open: false, message: '' });
 
     // Get hooks for content fetching
-    const { materials, loading: materialsLoading, error: materialsError, getMaterialContent } = useMaterials(selectedChapter?.id || '');
+    const { materials, loading, error, getMaterialContent } = useMaterials(selectedChapter?.id);
     const cloud = useCloudStorage();
 
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, material: Material) => {
@@ -343,39 +337,36 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
 
 
     // If mobile, render inside a Drawer
-    if (isMobile) {
-        return (
-            <Drawer
-                anchor="right"
-                open={!!open && !!selectedChapter}
-                onClose={onClose}
-                sx={{
-                    '& .MuiDrawer-paper': {
-                        width: '100%',
-                        maxWidth: { xs: '100%', sm: '450px' },
-                        boxSizing: 'border-box',
-                    },
-                    display: { md: 'none' },
-                    zIndex: theme.zIndex.drawer + 1,
-                }}
-            >
-                <DrawerHeader>
-                    <IconButton edge="start" onClick={onClose} aria-label="back">
-                        <ArrowBackIcon />
-                    </IconButton>
-                    <Typography variant="h5" sx={{ ml: 1, flexGrow: 1 }}>
-                        {selectedChapter?.name || 'Chapter Materials'}
-                    </Typography>
-                </DrawerHeader>
-                <Box sx={{ height: 'calc(100% - 64px)', overflow: 'auto' }}>
-                    {renderPanelContent()}
-                </Box>
-            </Drawer>
-        );
-    }
-
-    // Desktop: render as before
-    return (
+    // Always render the Drawer, only toggle open prop
+    return isMobile ? (
+        <Drawer
+            anchor="right"
+            open={!!selectedChapter}
+            onClose={onClose}
+            ModalProps={{ keepMounted: true }}
+            sx={{
+                '& .MuiDrawer-paper': {
+                    width: '100%',
+                    maxWidth: { xs: '100%', sm: '450px' },
+                    boxSizing: 'border-box',
+                },
+                display: { md: 'none' },
+                zIndex: theme.zIndex.drawer + 1,
+            }}
+        >
+            <DrawerHeader>
+                <IconButton edge="start" onClick={onClose} aria-label="back">
+                    <ArrowBackIcon />
+                </IconButton>
+                <Typography variant="h5" sx={{ ml: 1, flexGrow: 1 }}>
+                    {selectedChapter ? 'Chapter Materials' : 'Select a Chapter'}
+                </Typography>
+            </DrawerHeader>
+            <Box sx={{ height: 'calc(100% - 64px)', overflow: 'auto' }}>
+                {renderPanelContent()}
+            </Box>
+        </Drawer>
+    ) : (
         <MaterialsContainer
             onDragEnter={onDragEnter}
             onDragLeave={onDragLeave}
@@ -399,11 +390,19 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
 
                 {/* Main Content Area */}
                 <Fade in={true} timeout={500}>
-                    <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 0.5 }}>
-                        <Typography variant="h6" gutterBottom sx={{ mb: 2, ml: 1 }}>
-                            {selectedChapter ? `Materials for: ${selectedChapter.name}` : 'Select a Chapter'}
-                        </Typography>
-                        <Divider sx={{ mb: 2 }} />
+                    <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 2 }}>
+                        <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                            <Typography variant="h6">
+                                {selectedChapter ? `Materials for: ${selectedChapter.name}` : 'Select a Chapter'}
+                            </Typography>
+                            {selectedChapter && (
+                                <Button variant="text" size='small' startIcon={<UploadFileIcon />} onClick={handleFileInputClick}>
+                                    Add
+                                    <input type="file" hidden multiple onChange={handleFileInputChange} />
+                                </Button>
+                            )}
+                        </Box>
+                        <Divider sx={{ mb: 4 }} />
 
                         {loading && !!selectedChapter && (
                             <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
@@ -473,7 +472,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
                                                 <CardBottomInfo>
                                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                                                         <Typography variant="caption" color="text.secondary">{formatBytes(item.size || 0)}</Typography>
-                                                        <MaterialStatusIcon material={item} />
+                                                        <Tooltip title={item.syncStatus}><div><MaterialStatusIcon material={item} /></div></Tooltip>
                                                     </Box>
                                                     {item.progress !== undefined && item.progress < 100 && item.progress > 0 && (
                                                         <LinearProgress variant="determinate" value={item.progress} sx={{ height: 4, borderRadius: 2 }} />

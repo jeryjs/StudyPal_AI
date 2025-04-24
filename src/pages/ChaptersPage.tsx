@@ -16,7 +16,7 @@ import {
     useTheme
 } from '@mui/material';
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 
 // Hooks
 import { useChapters } from '@hooks/useChapters';
@@ -56,7 +56,8 @@ const FloatingActionButton = styled(Button)(({ theme }) => ({
 // --- Main Page Component ---
 
 const ChaptersPage: React.FC = () => {
-    const { subjectId } = useParams<{ subjectId: string }>();
+    const { subjectId, chapterId } = useParams<{ subjectId: string, chapterId?: string }>();
+    const location = useLocation();
     const navigate = useNavigate();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -65,49 +66,50 @@ const ChaptersPage: React.FC = () => {
     const [subject, setSubject] = useState<Subject | null>(null);
     const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
     const [isDraggingOver, setIsDraggingOver] = useState(false);
-    // uploadProgress now tracks the initial file reading/DB insertion phase
     const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
-
-    // Dialog states
     const [chapterDialogOpen, setChapterDialogOpen] = useState(false);
     const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<{ id: string, name: string, type: 'chapter' | 'material' } | null>(null);
     const [materialViewerOpen, setMaterialViewerOpen] = useState(false);
     const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
-
-    // Snackbar
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning'; }>({ open: false, message: '', severity: 'info' });
 
     // Hooks
     const { getSubject } = useSubjects();
     const { chapters, loading: chaptersLoading, error: chaptersError, createChapter, updateChapter, deleteChapter } = useChapters(subjectId || '');
-    // Only fetch materials when we have a selected chapter and need them
-    const { materials, loading: materialsLoading, error: materialsError, createMaterial, updateMaterial, deleteMaterial } = useMaterials(selectedChapter?.id || '');
-    // Optional: Get sync context if you want to manually trigger a sync check after adding files
-    // const { backupDatabaseToDrive } = useSyncContext();
+    const { createMaterial, deleteMaterial, materials } = useMaterials(selectedChapter?.id);
+
+    // Sync selectedChapter with chapterId param
+    useEffect(() => {
+        if (chapterId && chapters.length > 0) {
+            const found = chapters.find(c => c.id === chapterId);
+            setSelectedChapter(found || null);
+        } else {
+            setSelectedChapter(null);
+        }
+    }, [chapterId, chapters]);
 
     // Fetch Subject Details
     useEffect(() => {
-        if (subjectId) {
-            setSubject(null); // Reset subject when ID changes
-            setSelectedChapter(null); // Reset chapter selection
-            getSubject(subjectId)
-                .then(fetchedSubject => {
-                    if (fetchedSubject) {
-                        setSubject(fetchedSubject);
-                    } else {
-                        setSnackbar({ open: true, message: 'Subject not found', severity: 'error' });
-                        navigate('/subjects', { replace: true });
-                    }
-                })
-                .catch(err => {
-                    console.error("Error fetching subject:", err);
-                    setSnackbar({ open: true, message: 'Failed to load subject details', severity: 'error' });
-                });
-        } else {
-            navigate('/subjects', { replace: true }); // Navigate away if no subjectId
+        if (!subjectId) {
+            navigate('/subjects', { replace: true });
+            return;
         }
+
+        let isMounted = true;
+        if (!subject || subject.id !== subjectId) {
+            getSubject(subjectId)
+                .then(fetchedSubject => { isMounted && setSubject(fetchedSubject); })
+                .catch(err => {
+                    if (isMounted) {
+                        console.error('Error fetching subject:', err);
+                        setSnackbar({ open: true, message: 'Failed to load subject details', severity: 'error' });
+                        setTimeout(() => navigate('/subjects', { replace: true }), 3000);
+                    }
+                });
+        }
+        return () => { isMounted = false }
     }, [subjectId, getSubject, navigate]);
 
     // --- Chapter Dialog Handlers ---
@@ -135,12 +137,12 @@ const ChaptersPage: React.FC = () => {
                     number: chapterNumber
                 });
                 setSnackbar({ open: true, message: 'Chapter updated successfully', severity: 'success' });
-                // No need to close dialog here, ChapterDialog handles it on success
+                navigate(`/subjects/${subjectId}/c/${editingChapter ? editingChapter.id : ''}`); // Navigate to the updated chapter
             } else {
                 const newChapter = await createChapter(name, subjectId);
                 setSelectedChapter(newChapter);
                 setSnackbar({ open: true, message: 'Chapter created successfully', severity: 'success' });
-                // No need to close dialog here, ChapterDialog handles it on success
+                navigate(`/subjects/${subjectId}/c/${newChapter ? newChapter.id : ''}`); // Navigate to the new chapter
             }
             handleCloseChapterDialog(); // Explicitly close on success *after* operations
         } catch (error) {
@@ -181,16 +183,37 @@ const ChaptersPage: React.FC = () => {
         }
     };
 
+    // --- Material Viewer: Open on ?m=id ---
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const materialId = params.get('m');
+        if (materialId && materials.length > 0) {
+            const found = materials.find(m => m.id === materialId);
+            if (found) {
+                setSelectedMaterial(found);
+                setMaterialViewerOpen(true);
+            } else setSnackbar({ open: true, message: 'Material not found', severity: 'error' });
+        }
+    }, [location.search, materials]);
+
     // --- Material Handlers ---
     const handleViewMaterial = (material: Material) => {
         setSelectedMaterial(material);
         setMaterialViewerOpen(true);
+        // Add ?m=material.id to the URL
+        const params = new URLSearchParams(location.search);
+        params.set('m', material.id);
+        navigate({ search: params.toString() }, { replace: true });
     };
 
     const handleCloseMaterialViewer = () => {
         setMaterialViewerOpen(false);
         // Delay clearing selectedMaterial for closing animation
         setTimeout(() => setSelectedMaterial(null), 300);
+        // Remove ?m from the URL
+        const params = new URLSearchParams(location.search);
+        params.delete('m');
+        navigate({ search: params.toString() }, { replace: true });
     };
 
     // --- Drag and Drop Handlers ---
@@ -288,12 +311,9 @@ const ChaptersPage: React.FC = () => {
     return (
         <Box sx={{ p: { xs: 2, sm: 3 }, height: '100%', display: 'flex', flexDirection: 'column' }}>
             {/* Header with Breadcrumb */}
-            <Box sx={{ mb: 3, flexShrink: 0 /* Prevent header shrinking */ }}>
+            <Box sx={{ mb: 3, flexShrink: 0 }}>
                 <Breadcrumbs
-                    separator={<NavigateNextIcon fontSize="small" />}
-                    aria-label="breadcrumb"
-                    sx={{ mb: 1 }}
-                >
+                    separator={<NavigateNextIcon fontSize="small" />} aria-label="breadcrumb" sx={{ mb: 1 }}>
                     <Typography
                         component="a"
                         color="inherit"
@@ -302,9 +322,17 @@ const ChaptersPage: React.FC = () => {
                     >
                         Subjects
                     </Typography>
-                    <Typography color="text.primary" sx={{ fontWeight: 500 }}>
-                        {subject?.name || 'Loading...'}
+                    <Typography
+                        component="a"
+                        color="inherit"
+                        sx={{ cursor: 'pointer', display: 'flex', alignItems: 'center', '&:hover': { textDecoration: 'underline' } }}
+                        onClick={() => navigate(`/subjects/${subjectId}`)}
+                    >
+                        {subject?.name || '...'}
                     </Typography>
+                    {selectedChapter && (
+                        <Typography color="text.primary">{selectedChapter.name}</Typography>
+                    )}
                 </Breadcrumbs>
 
                 <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
@@ -335,12 +363,12 @@ const ChaptersPage: React.FC = () => {
 
             {/* Main Content Grid - Make it grow */}
             <Grid container spacing={3} sx={{ flexGrow: 1 }}>
-                {/* Left Column - Chapter List - Always visible */}
+                {/* Left Column - Chapter List */}
                 <Grid size={{ xs: 12, md: 4, lg: 3 }} sx={{ height: { xs: 'auto', md: '100%' }, overflowY: { xs: 'visible', md: 'auto' } }}>
                     <ChapterList
                         chapters={chapters}
                         selectedChapter={selectedChapter}
-                        onSelectChapter={setSelectedChapter}
+                        onSelectChapter={c => navigate(`/subjects/${subjectId}/c/${c.id}`, { replace: !!chapterId })}
                         onAddChapter={() => handleOpenChapterDialog()}
                         onEditChapter={handleOpenChapterDialog}
                         onDeleteChapter={(chapter) => handleOpenDeleteDialog(chapter.id, chapter.name, 'chapter')}
@@ -351,7 +379,7 @@ const ChaptersPage: React.FC = () => {
 
                 <Grid size={{ md: 8, lg: 9 }} sx={{ height: '100%', overflowY: 'auto' }}>
                     <MaterialsPanel
-                        key={selectedChapter?.id || 'no-chapter'}
+                        key={!isMobile ? (selectedChapter?.id || 'no-chapter') : undefined} // Key to force re-render on chapter change for mobile
                         selectedChapter={selectedChapter}
                         onViewMaterial={handleViewMaterial}
                         onDeleteMaterial={(material) => handleOpenDeleteDialog(material.id, material.name, 'material')}
@@ -360,10 +388,8 @@ const ChaptersPage: React.FC = () => {
                         onDragEnter={handleDragEnter}
                         onDragLeave={handleDragLeave}
                         isDraggingOver={isDraggingOver}
-                        loading={materialsLoading && !!selectedChapter}
-                        error={materialsError}
                         uploadProgress={uploadProgress}
-                        onClose={() => setSelectedChapter(null)}
+                        onClose={() => navigate(-1)}
                     />
                 </Grid>
             </Grid>

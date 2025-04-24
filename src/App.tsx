@@ -106,6 +106,7 @@ function App() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/subjects" element={<SubjectsPage />} />
             <Route path="/subjects/:subjectId" element={<ChaptersPage />} />
+            <Route path="/subjects/:subjectId/c/:chapterId" element={<ChaptersPage />} />
             {/* Remove duplicate subjects route */}
             {/* <Route path="/subjects" element={<Typography sx={{ p: 3 }}>Subjects Page (Placeholder)</Typography>} /> */}
             <Route path="/learn" element={<LearnPage />} />

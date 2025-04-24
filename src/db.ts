@@ -1,7 +1,8 @@
 import { DBSchema, IndexNames as IDBIndexNames, IDBPDatabase, IDBPTransaction, StoreNames as IDBStoreNames, openDB } from "idb";
 // Import the new SyncStatus enum
 import { blobToBase64, tryBase64ToBlob } from "@utils/utils";
-import { Chapter, Material, Subject, SyncQueueItem, SyncStatus } from "./types/db.types";
+import { Chapter, Material, Subject, SyncStatus } from "@type/db.types";
+import { CopilotItem } from "@type/copilot.types";
 
 /**
  * Application database name.
@@ -21,25 +22,18 @@ export enum StoreNames {
 	SUBJECTS = "subjects",
 	CHAPTERS = "chapters",
 	MATERIALS = "materials",
-	SYNC_QUEUE = "syncQueue"
+	COPILOT = "copilot",
 }
-
-// Define specific index names type for better type safety
-type SubjectIndexNames = 'by-syncStatus';
-type ChapterIndexNames = 'by-subjectId' | 'by-syncStatus';
-type MaterialIndexNames = 'by-chapterId' | 'by-syncStatus';
-type SyncQueueIndexNames = 'by-timestamp';
 
 /**
  * The base database schema for StudyPal app.
  */
 export interface StudyPalDB extends DBSchema {
 	[StoreNames.SETTINGS]: { key: string; value: any };
-	// Use the new SyncStatus enum for index value types
-	[StoreNames.SUBJECTS]: { key: string; value: Subject; indexes: { [N in SubjectIndexNames]: SyncStatus } };
+	[StoreNames.SUBJECTS]: { key: string; value: Subject; indexes: { 'by-syncStatus': SyncStatus } };
 	[StoreNames.CHAPTERS]: { key: string; value: Chapter; indexes: { 'by-subjectId': string, 'by-syncStatus': SyncStatus } };
 	[StoreNames.MATERIALS]: { key: string; value: Material; indexes: { 'by-chapterId': string, 'by-syncStatus': SyncStatus } };
-	[StoreNames.SYNC_QUEUE]: { key: string; value: SyncQueueItem; indexes: { [N in SyncQueueIndexNames]: number } };
+	[StoreNames.COPILOT]: { key: string; value: CopilotItem; indexes: { 'by-type': string, 'by-timestamp': Date } };
 }
 
 // Type for DB export format
@@ -117,13 +111,13 @@ export function getDb(): Promise<IDBPDatabase<StudyPalDB>> {
 					ensureIndex(StoreNames.MATERIALS, 'by-syncStatus', 'syncStatus');
 				}
 
-				// Sync Queue store
-				if (!db.objectStoreNames.contains(StoreNames.SYNC_QUEUE)) {
-					const store = db.createObjectStore(StoreNames.SYNC_QUEUE, { keyPath: 'id' });
+				// Copilot store
+				if (!db.objectStoreNames.contains(StoreNames.COPILOT)) {
+					const store = db.createObjectStore(StoreNames.COPILOT, { keyPath: 'id' });
 					store.createIndex('by-timestamp', 'timestamp');
-					console.log(`Created object store: ${StoreNames.SYNC_QUEUE} with index by-timestamp`);
+					console.log(`Created object store: ${StoreNames.COPILOT} with index by-timestamp`);
 				} else {
-					ensureIndex(StoreNames.SYNC_QUEUE, 'by-timestamp', 'timestamp');
+					ensureIndex(StoreNames.COPILOT, 'by-timestamp', 'timestamp');
 				}
 			},
 			blocked() {
@@ -260,7 +254,7 @@ export class DBStore<T> {
 export const exportDbToJson = async (stripContentData = true): Promise<string> => {
 	const db = await getDb();
 	const exportData: DbExport = {};
-	const storesToExport: StoreNames[] = [StoreNames.SETTINGS, StoreNames.SUBJECTS, StoreNames.CHAPTERS, StoreNames.MATERIALS];
+	const storesToExport: StoreNames[] = [StoreNames.SETTINGS, StoreNames.SUBJECTS, StoreNames.CHAPTERS, StoreNames.MATERIALS, StoreNames.COPILOT];
 
 	for (const storeName of storesToExport) {
 		try {

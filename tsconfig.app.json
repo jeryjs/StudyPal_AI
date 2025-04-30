@@ -20,6 +20,7 @@
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
+    "noImplicitAny": false,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
 
@@ -30,9 +31,11 @@
       "@pages/*": ["pages/*"],
       "@contexts/*": ["contexts/*"],
       "@hooks/*": ["hooks/*"],
+      "@services/*": ["services/*"],
       "@store/*": ["store/*"],
+      "@type/*": ["types/*"],
       "@utils/*": ["utils/*"],
-      "@types/*": ["types/*"]
+      "@db": ["db.ts"],
     }
   },
   "include": ["src"]

@@ -32,6 +32,7 @@ import ChapterList from '@components/chapters/ChapterList';
 import MaterialsPanel from '@components/chapters/MaterialsPanel';
 import MaterialViewerDialog from '@components/chapters/MaterialViewerDialog';
 import DeleteConfirmationDialog from '@components/shared/DeleteConfirmationDialog';
+import { useCopilot } from '@hooks/useCopilot';
 
 // --- Styled Components ---
 
@@ -79,6 +80,19 @@ const ChaptersPage: React.FC = () => {
     const { getSubject } = useSubjects();
     const { chapters, loading: chaptersLoading, error: chaptersError, createChapter, updateChapter, deleteChapter } = useChapters(subjectId || '');
     const { createMaterial, deleteMaterial, materials } = useMaterials(selectedChapter?.id);
+    const { setPageContext } = useCopilot(); // Use the hook
+
+    // Set page context when subject is found or changes
+    useEffect(() => {
+        if (subject) {
+            setPageContext(`Viewing chapters for the subject: "${subject.name}" (id: ${subject.id}).`);
+        } else if (subjectId) {
+            // Fallback if subject name isn't loaded yet
+            setPageContext(`Viewing chapters for subject ID: ${subjectId}.`);
+        } else {
+            setPageContext('Viewing chapters (unknown subject).');
+        }
+    }, [subject, subjectId, setPageContext]); // Update when subject or ID changes
 
     // Sync selectedChapter with chapterId param
     useEffect(() => {

@@ -39,12 +39,13 @@ import {
     useMediaQuery,
     useTheme
 } from '@mui/material';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import useCloudStorage from '@hooks/useCloudStorage';
 import { useMaterials } from '@hooks/useMaterials';
 import { Chapter, Material, MaterialType, SyncStatus } from '@type/db.types';
 import { formatBytes } from '@utils/utils';
+import { useCopilot } from '@hooks/useCopilot';
 
 // --- Styled Components ---
 
@@ -229,6 +230,9 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     // Get hooks for content fetching
     const { materials, loading, error, getMaterialContent } = useMaterials(selectedChapter?.id);
     const cloud = useCloudStorage();
+
+    const { setPageContext } = useCopilot();
+    useEffect(() => setPageContext(`Viewing chapter: ${selectedChapter?.name} (${selectedChapter?.id}) from subjectId: ${selectedChapter?.subjectId}`), [setPageContext, selectedChapter]);
 
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, material: Material) => {
         event.stopPropagation(); // Prevent card click

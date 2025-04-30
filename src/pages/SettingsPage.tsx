@@ -1,5 +1,6 @@
-import { Box, Typography, useTheme } from '@mui/material'; // Removed Paper, Theme
-import React from 'react';
+import { useCopilot } from '@hooks/useCopilot';
+import { Box, Typography } from '@mui/material'; // Removed Paper, Theme
+import React, { useEffect } from 'react';
 
 import GeminiApiKey from '@components/settings/Item_GeminiApiKey';
 import GoogleDriveSync from '@components/settings/Item_GoogleDriveSync';
@@ -8,28 +9,24 @@ import SettingsSection from '@components/settings/SettingsSection'; // Import th
 
 // --- Settings Page Component ---
 const SettingsPage: React.FC = () => {
+  const { setPageContext } = useCopilot();
+  useEffect(() => setPageContext('Settings page.'), [setPageContext]);
+
   return (
     <Box sx={{ m: { xs: 1, md: 4 } }}>
       <Typography variant="h4" gutterBottom sx={{ mb: 3, fontWeight: 700 }}>
         Settings
       </Typography>
-
-      {/* Appearance Section */}
       <SettingsSection title='Appearance' subTitle='Choose a theme that fits your style.'>
         <ThemeSelector />
       </SettingsSection>
-
-      {/* AI Settings Section */}
       <SettingsSection title='AI Integration' subTitle='Configure API keys for AI integration to enhance your study experience.'>
         <GeminiApiKey />
       </SettingsSection>
-
-      {/* Data Sync Section */}
       <SettingsSection title='Data Synchronization' subTitle='Sync your data with Google Drive to access it across all your devices.'>
         <GoogleDriveSync />
       </SettingsSection>
     </Box>
   );
 };
-
 export default SettingsPage;

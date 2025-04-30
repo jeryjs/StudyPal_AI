@@ -1,13 +1,9 @@
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import { useCopilot } from '@hooks/useCopilot';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import NoteIcon from '@mui/icons-material/Note';
-import { AttachFile } from '@mui/icons-material';
-import AttachFileIcon from '@mui/icons-material/AttachFile';
-import CloseIcon from '@mui/icons-material/Close';
 import SendIcon from '@mui/icons-material/Send';
 import ChatIcon from '@mui/icons-material/SmartToyOutlined';
-import { alpha, Box, Collapse, Divider, Drawer, IconButton, List, ListItem, ListItemIcon, ListItemText, Paper, styled, TextField, Tooltip, Typography, useTheme } from '@mui/material';
-import CopilotPage, { contextCategories, ContextItem, CopilotPageProps } from '@pages/CopilotPage';
+import { Box, IconButton, Paper, styled, TextField, useTheme } from '@mui/material';
+import CopilotPage from '@pages/CopilotPage';
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 
@@ -74,11 +70,11 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
     const [searchParams] = useSearchParams();
 
     const inputRef = useRef<HTMLInputElement>(null);
-    const [copilot, setCopilot] = useState<CopilotPageProps>({ input: '', contexts: [], attachContextOpen: false });
-    const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
-
+    const [inputValue, setInputValue] = useState('');
     const isExpanded = location.pathname === '/copilot';
     const currentPage = searchParams.get('page') || '';
+
+    const { sendMessage, isLoading } = useCopilot();
 
     useEffect(() => {
         if (isExpanded && inputRef.current) {
@@ -89,12 +85,19 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
     // Handle keyboard events (Escape key for closing, c for opening)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Check if the active element is the body or null (no input focused)
-            if (!['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName || '') || (e.key === 'Escape' && document.activeElement == inputRef.current)) {
-                e.preventDefault();
+            const activeElementTag = document.activeElement?.tagName;
+            const isInputFocused = ['INPUT', 'TEXTAREA'].includes(activeElementTag || '');
 
-                if (e.key === 'Escape') handleClose();
-                else if (e.key === 'c') handleFocus();
+            // Allow Escape even if input is focused
+            if (e.key === 'Escape') {
+                if (isExpanded) {
+                    e.preventDefault();
+                    handleClose();
+                }
+            } else if (e.key === 'c' && !isInputFocused) {
+                // Only trigger open with 'c' if not focused on an input
+                e.preventDefault();
+                handleFocus();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -104,171 +107,85 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
     const handleFocus = () => {
         if (!isExpanded) {
             const currentPath = location.pathname + location.search + location.hash;
-            navigate(`/copilot?page=${currentPath.replace(/^\//, '')}`, { preventScrollReset: true });    // trim leading slash for URL
+            navigate(`/copilot?page=${encodeURIComponent(currentPath.replace(/^\//, ''))}`, { preventScrollReset: true });
         }
     };
 
     const handleClose = (e?: React.MouseEvent) => {
         if (!isExpanded) return;
-
-        inputRef.current?.blur(); // Remove focus from input
+        inputRef.current?.blur();
         e?.stopPropagation();
-        navigate(-1);
-    };
-
-    const toggleCategory = (categoryId: string) => {
-        setExpandedCategories(prev => ({
-            ...prev,
-            [categoryId]: !prev[categoryId]
-        }));
-    };
-    const handleAttach = (item: ContextItem) => {
-        // Check if the item is already attached
-        if (!copilot.contexts.some(ctx => ctx.id === item.id)) {
-            setCopilot(p => ({ ...p, contexts: [...p.contexts, item] }));
+        // Navigate back to the previous page captured in the 'page' query param
+        const previousPage = searchParams.get('page');
+        if (previousPage) {
+            navigate(`/${decodeURIComponent(previousPage)}`, { replace: true }); // Use replace to avoid adding copilot close to history
         } else {
-            // If already attached, remove it from the contexts
-            setCopilot(p => ({ ...p, contexts: p.contexts.filter(ctx => ctx.id !== item.id) }));
+            navigate(-1); // Fallback if no previous page recorded
         }
     };
 
-    const handleSend = (e: React.FormEvent) => {
+    const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (copilot.input.trim()) {
-            // TODO: Implement actual message sending logic
-            setCopilot(prev => ({ ...prev, input: '' }));
+        const trimmedInput = inputValue.trim();
+        if (trimmedInput && !isLoading) {
+            try {
+                // Pass only the input value to sendMessage
+                await sendMessage(trimmedInput);
+                setInputValue(''); // Clear input after successful send
+            } catch (error) {
+                console.error("Chatbar: Failed to send message:", error);
+                // Error state is managed globally in CopilotContext
+            }
         }
     };
 
     return (
         <MorphContainer expanded={isExpanded} sx={{ left: navbarWidth, width: isExpanded ? `calc(100vw - ${navbarWidth}px)` : 360 }}>
             <MorphCopilotPage show={isExpanded}>
-                {isExpanded && <CopilotPage {...copilot} setCopilot={setCopilot} />}
+                {isExpanded && <CopilotPage />}
             </MorphCopilotPage>
 
             <MorphInputBar expanded={isExpanded} elevation={0}>
-                {isExpanded && (
-                    <Box sx={{ pb: 1, display: 'flex', gap: 1 }}>
-                        <Tooltip title="Add context (Ctrl + /)" arrow placement="top">
-                            <IconButton
-                                onClick={() => setCopilot(p => ({ ...p, attachContextOpen: !copilot.attachContextOpen }))}
-                                size="small"
-                                sx={{ bgcolor: alpha(theme.palette.primary.dark, copilot.attachContextOpen ? 0.4 : 0.2), borderRadius: 2, fontSize: 14, transition: 'all 400ms cubic-bezier(.77,0,.18,1)' }}
-                            >
-                                <AttachFile fontSize='small' /> Add Context
-                            </IconButton>
-                        </Tooltip>
-                        {copilot.contexts.map((ctx, idx) => (
-                            <Box
-                                key={idx}
-                                sx={{ pr: 1.5, bgcolor: theme.palette.action.hover, color: theme.palette.text.secondary, fontSize: 13, maxWidth: 180, borderRadius: theme.shape.borderRadius, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}
-                                title={ctx.name || ''}
-                            >
-                                <IconButton size="small" onClick={() => setCopilot(prev => ({ ...prev, contexts: prev.contexts.filter(c => c.id !== ctx.id) }))}>
-                                    <CloseIcon fontSize="small" sx={{ color: theme.palette.text.secondary, fontSize: 18 }} />
-                                </IconButton>
-                                {ctx.name || 'Context'}
-                            </Box>
-                        ))}
-                    </Box>
-                )}
-
                 <form onSubmit={handleSend} style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
                     {!isExpanded && (
                         <ChatIcon sx={{ color: theme.palette.text.secondary, mr: 1 }} />
                     )}
                     {isExpanded && (
                         <IconButton onClick={handleClose} size="small" sx={{ color: theme.palette.text.secondary, mr: 1 }}>
-                            <CloseIcon />
+                            <ExpandMoreIcon />
                         </IconButton>
                     )}
                     <MorphInput
                         inputRef={inputRef}
                         variant="outlined"
                         placeholder={isExpanded ? 'Ask Copilot anything...' : 'Chat with Study-Pal Copilot...'}
-                        value={copilot.input}
+                        value={inputValue}
                         onFocus={handleFocus}
-                        onChange={e => setCopilot(prev => ({ ...prev, input: e.target.value }))}
+                        onChange={e => setInputValue(e.target.value)}
                         autoComplete="off"
                         fullWidth
+                        disabled={isLoading} // Disable input while loading
+                        multiline // Allow multiline input
+                        maxRows={5} // Limit height
+                        onKeyDown={(e) => {
+                            // Submit on Enter, allow Shift+Enter for newline
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSend(e);
+                            }
+                        }}
                     />
                     <IconButton
                         type="submit"
                         color="primary"
                         aria-label="Send message"
-                        sx={{ width: !!copilot.input.trim() ? 40 : 0, transition: 'all 400ms cubic-bezier(.77,0,.18,1)', opacity: !!copilot.input.trim() ? 1 : 0 }}
+                        sx={{ width: !!inputValue.trim() ? 40 : 0, transition: 'all 400ms cubic-bezier(.77,0,.18,1)', opacity: !!inputValue.trim() ? 1 : 0 }}
+                        disabled={!inputValue.trim() || isLoading} // Disable if no input or loading
                     >
                         <SendIcon />
                     </IconButton>
                 </form>
             </MorphInputBar>
-
-            {/* Context Sidebar */}
-            <Drawer
-                variant="persistent"
-                anchor="bottom"
-                open={isExpanded && copilot.attachContextOpen}
-                hideBackdrop
-                sx={{
-                    '& .MuiDrawer-paper': {
-                        left: navbarWidth,
-                        width: '100%',
-                        maxWidth: 360,
-                        borderRadius: theme.shape.borderRadius,
-                        pb: 16,
-                        zIndex: 0,
-                        transition: 'transform 400ms cubic-bezier(.77,0,.18,1)',
-                    },
-                }}
-            >
-                <Box sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}>
-                    <Typography variant="h6">Contexts</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Attach relevant information to your chat
-                    </Typography>
-                </Box>
-                <List sx={{ pt: 0 }}>
-                    {contextCategories.map((category) => (
-                        <React.Fragment key={category.id}>
-                            <ListItem onClick={() => toggleCategory(category.id)} sx={{ py: 1 }}>
-                                <ListItemIcon sx={{ minWidth: 36, mr: 0 }}>
-                                    <NoteIcon fontSize="small" />
-                                </ListItemIcon>
-                                <ListItemText primary={category.name} />
-                                {expandedCategories[category.id] ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                            </ListItem>
-                            <Collapse in={expandedCategories[category.id]} timeout="auto" unmountOnExit>
-                                <List component="div" disablePadding>
-                                    {category.items.map((item) => (
-                                        <ListItem
-                                            key={item.id}
-                                            sx={{ pl: 4, py: 0.5, '&:hover .attach-icon': { opacity: 1 } }}
-                                            onClick={() => handleAttach(item)}
-                                        >
-                                            <IconButton
-                                                size="small"
-                                                className="attach-icon"
-                                                sx={{ mr: 1, opacity: 0.3, transition: 'opacity 0.2s' }}
-                                            >
-                                                {copilot.contexts.some(ctx => ctx.id === item.id) ? (
-                                                    <AttachFileIcon fontSize="small" sx={{ color: theme.palette.primary.main }} />
-                                                ) : (
-                                                    <AttachFileIcon fontSize="small" sx={{ color: theme.palette.text.secondary }} />
-                                                )}
-                                            </IconButton>
-                                            <ListItemText
-                                                primary={item.name}
-                                                primaryTypographyProps={{ variant: 'body2', noWrap: true }}
-                                            />
-                                        </ListItem>
-                                    ))}
-                                </List>
-                            </Collapse>
-                            <Divider component="li" variant="inset" />
-                        </React.Fragment>
-                    ))}
-                </List>
-            </Drawer>
         </MorphContainer>
     );
 };

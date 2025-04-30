@@ -13,8 +13,8 @@ const convertMessagesToGeminiContent = (history: CopilotMessage[]): Content[] =>
         .filter(msg => msg.role === 'user' || msg.role === 'model' || msg.role === 'tool')
         .map(msg => ({
             // Gemini API maps 'tool' role internally when parts contain FunctionResponsePart
-            // Map 'system' to 'user' if needed, otherwise keep roles
-            role: msg.role === 'system' ? 'user' : msg.role,
+            // Map 'tool' to 'function' if needed, otherwise keep roles
+            role: msg.role === 'tool' ? 'function' : msg.role,
             parts: msg.parts,
         }));
 };

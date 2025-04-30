@@ -11,6 +11,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 import { Material, MaterialType } from '@type/db.types';
 import { tryBase64ToBlob } from '@utils/utils';
+import { useCopilot } from '@hooks/useCopilot';
 
 // --- Sub-Components ---
 
@@ -32,6 +33,9 @@ interface FullscreenPreviewProps {
 const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({ open, onClose, material, contentBlob }) => {
     const [content, setContent] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    
+    const { setPageContext } = useCopilot();
+    useEffect(() => setPageContext(`viewing material: ${material.name} (${material.id}) from chapterId: ${material.chapterId}`), [setPageContext, material]);
 
     // Create Object URL for non-text types
     const objectUrl = useMemo(() => {
@@ -51,7 +55,7 @@ const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({ open, onClose, ma
         let isMounted = true;
         if (open && contentBlob) {
             setIsLoading(true);
-            setContent(null);
+            // setContent(null);
 
             if (material.type === MaterialType.LINK || material.type === MaterialType.TEXT) {
                 contentBlob.text()
@@ -76,7 +80,7 @@ const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({ open, onClose, ma
                 setIsLoading(false);
             }
         } else {
-            setContent(null); // Clear content if no blob
+            // setContent(null); // Clear content if no blob
         }
 
         return () => {

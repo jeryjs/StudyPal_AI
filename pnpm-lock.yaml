@@ -14,6 +14,9 @@ importers:
       '@emotion/styled':
         specifier: ^11.14.0
         version: 11.14.0(@emotion/react@11.14.0(@types/react@19.1.2)(react@19.1.0))(@types/react@19.1.2)(react@19.1.0)
+      '@google/generative-ai':
+        specifier: ^0.24.1
+        version: 0.24.1
       '@mui/icons-material':
         specifier: ^7.0.2
         version: 7.0.2(@mui/material@7.0.2(@emotion/react@11.14.0(@types/react@19.1.2)(react@19.1.0))(@emotion/styled@11.14.0(@emotion/react@11.14.0(@types/react@19.1.2)(react@19.1.0))(@types/react@19.1.2)(react@19.1.0))(@types/react@19.1.2)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(@types/react@19.1.2)(react@19.1.0)
@@ -392,6 +395,10 @@ packages:
     resolution: {integrity: sha512-ZAoA40rNMPwSm+AeHpCq8STiNAwzWLJuP8Xv4CHIc9wv/PSuExjMrmjfYNj682vW0OOiZ1HKxzvjQr9XZIisQA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@google/generative-ai@0.24.1':
+    resolution: {integrity: sha512-MqO+MLfM6kjxcKoy0p1wRzG3b4ZZXtPI+z2IE26UogS2Cm/XHO+7gGRBh6gcJsOiIVoH93UwKvW4HdgiOZCy9Q==}
+    engines: {node: '>=18.0.0'}
+
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
     engines: {node: '>=18.18.0'}
@@ -433,8 +440,8 @@ packages:
   '@maxim_mazurok/gapi.client.discovery-v1@0.1.20200806':
     resolution: {integrity: sha512-Wl6UfmZVDdWbY3PUu8E2ULk9RPLjnMqp/iOA4tcK8Ne+U/GmlnWP/e34IaZNGArfl7iXJNOG+/3Rj9L9jQyF9Q==}
 
-  '@maxim_mazurok/gapi.client.drive-v3@0.0.20250415':
-    resolution: {integrity: sha512-uHKltyqtT5E563Y0EfT/MQsObokkn0kWfQtHFEk4vjSg4eIRPt/x8m2Qxs1Lm4ecCz0/+xs1BoQZDT0+RXnWhg==}
+  '@maxim_mazurok/gapi.client.drive-v3@0.0.20250422':
+    resolution: {integrity: sha512-4OvPJOYK+QsACWN6E01yq4BIwLY8m49aFRWUXKvkTjKNipQClLyjs5FIEfpMZtHFE6ITmLhgpi9yjyt1ZjrTfQ==}
 
   '@mui/core-downloads-tracker@7.0.2':
     resolution: {integrity: sha512-TfeFU9TgN1N06hyb/pV/63FfO34nijZRMqgHk0TJ3gkl4Fbd+wZ73+ZtOd7jag6hMmzO9HSrBc6Vdn591nhkAg==}
@@ -1844,6 +1851,8 @@ snapshots:
       '@eslint/core': 0.13.0
       levn: 0.4.1
 
+  '@google/generative-ai@0.24.1': {}
+
   '@humanfs/core@0.19.1': {}
 
   '@humanfs/node@0.16.6':
@@ -1879,7 +1888,7 @@ snapshots:
       '@types/gapi.client': 1.0.8
       '@types/gapi.client.discovery-v1': 0.0.4
 
-  '@maxim_mazurok/gapi.client.drive-v3@0.0.20250415':
+  '@maxim_mazurok/gapi.client.drive-v3@0.0.20250422':
     dependencies:
       '@types/gapi.client': 1.0.8
       '@types/gapi.client.discovery-v1': 0.0.4
@@ -2132,7 +2141,7 @@ snapshots:
 
   '@types/gapi.client.drive-v3@0.0.5':
     dependencies:
-      '@maxim_mazurok/gapi.client.drive-v3': 0.0.20250415
+      '@maxim_mazurok/gapi.client.drive-v3': 0.0.20250422
 
   '@types/gapi.client@1.0.8': {}
 

@@ -31,6 +31,7 @@
       "@pages/*": ["pages/*"],
       "@contexts/*": ["contexts/*"],
       "@hooks/*": ["hooks/*"],
+      "@services/*": ["services/*"],
       "@store/*": ["store/*"],
       "@type/*": ["types/*"],
       "@utils/*": ["utils/*"],

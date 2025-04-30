@@ -280,7 +280,7 @@ export const exportDbToJson = async (stripContentData = true): Promise<string> =
 			else exportData[storeName] = items;
 
 			await tx.done;
-			console.log(`Exported ${items?.length} items from ${storeName}`);
+			// console.log(`Exported ${items?.length} items from ${storeName}`);
 
 		} catch (err) {
 			console.error(`Error exporting store ${storeName}:`, err);
@@ -288,7 +288,7 @@ export const exportDbToJson = async (stripContentData = true): Promise<string> =
 		}
 	}
 
-	console.log("DB Export: Exported stores:", storesToExport.join(', '));
+	// console.log("DB Export: Exported stores:", storesToExport.join(', '));
 	// Use null replacer, 2 spaces for readability
 	return JSON.stringify(exportData, null, 2);
 };

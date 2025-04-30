@@ -501,6 +501,9 @@ export const ThemeContextProvider: React.FC<{ children: ReactNode }> = ({ childr
         let isMounted = true;
         (async () => {
             try {
+                const customTheme = await settingsStore.customTheme;
+                availableThemes.push(customTheme);
+
                 let savedThemeId = await settingsStore.activeTheme;
                 if (!savedThemeId) {
                     // If nothing stored, check system preference
@@ -521,9 +524,9 @@ export const ThemeContextProvider: React.FC<{ children: ReactNode }> = ({ childr
     const applyTheme = async (themeId: string) => {
         let themeToApply: AppTheme | undefined | null = null;
         if (themeId === 'custom') {
-            themeToApply = await settingsStore.customTheme;
+            themeToApply = availableThemes.find(t => t.id === "custom");
             if (!themeToApply) {
-                console.warn("Custom theme selected but no custom theme found in store. Falling back to wellness-dark.");
+                alert("Custom theme selected but no custom theme found in db. Falling back to default theme.");
                 themeId = 'wellness-dark';
                 themeToApply = availableThemes.find(t => t.id === themeId);
             } else {
@@ -563,6 +566,11 @@ export const ThemeContextProvider: React.FC<{ children: ReactNode }> = ({ childr
 
     useEffect(() => {
         const handleThemeChange = async () => {
+            const customTheme = await settingsStore.customTheme;
+            const customThemeIndex = availableThemes.findIndex(t => t.id === 'custom');
+            if (customThemeIndex !== -1) availableThemes.splice(customThemeIndex, 1);  // Remove old custom theme if it exists
+            if (customTheme) availableThemes.push(customTheme); // Add back latest custom theme
+            
             await applyTheme(await settingsStore.activeTheme);
         };
         settingsStore.onChange(SettingKeys.ACTIVE_THEME, handleThemeChange);

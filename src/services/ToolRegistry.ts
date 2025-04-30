@@ -64,7 +64,8 @@ export const toolRegistry: CopilotTool[] = [
                 return { success: false, message: "Invalid input: 'settings' must be a non-empty array." };
             }
             try {
-                const parsedSettings = settings.map(s => ({ key: s.key, value: JSON.parse(s.value) }));
+                let parsedSettings = settings;
+                try { parsedSettings = settings.map(s => ({ key: s.key, value: JSON.parse(s.value) })) } catch (error) {/* ignore error parsing the settings */}
                 await settingsStore.setMultipleSettings(parsedSettings);
                 return { success: true, message: `Settings updated successfully.` };
             } catch (error) {
@@ -75,15 +76,13 @@ export const toolRegistry: CopilotTool[] = [
     },
     {
         name: "get_available_themes",
-        description: "Retrieves the definitions of all available standard themes and the currently saved custom theme (if one exists). Provides context for generating a new custom theme (id is always 'custom' for generated themes). If need to generate/update a theme, always first call this tool to get the syntax for defining a theme.",
+        description: "Retrieves the definitions of all available themes along with the currently saved custom theme (if it exists). Provides reference context for generating a new custom theme (id is always 'custom' for generated themes). If need to generate/update a theme, always first call this tool to get the syntax for defining a theme.",
         parameters: { type: TYPE.OBJECT, properties: {}, required: [] },
         execute: async () => {
             try {
-                const customTheme = await settingsStore.customTheme;
                 return {
-                    activeThemeId: await settingsStore.activeTheme, // The ID of the currently active theme
-                    standardThemes: availableThemes, // Array of standard AppTheme objects
-                    customTheme: customTheme || null // The stored custom AppTheme object or null
+                    activeThemeId: await settingsStore.activeTheme,
+                    availableThemes: availableThemes,
                 };
             } catch (error) {
                 console.error("Tool Error (get_available_themes):", error);

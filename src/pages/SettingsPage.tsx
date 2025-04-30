@@ -10,7 +10,7 @@ import SettingsSection from '@components/settings/SettingsSection'; // Import th
 // --- Settings Page Component ---
 const SettingsPage: React.FC = () => {
   const { setPageContext } = useCopilot();
-  useEffect(() => setPageContext('Settings page.'), [setPageContext]);
+  useEffect(() => setPageContext('User is currently on Settings page. If you aren’t aware of the current settings yet, the first get_settings with the tool.'), [setPageContext]);
 
   return (
     <Box sx={{ m: { xs: 1, md: 4 } }}>

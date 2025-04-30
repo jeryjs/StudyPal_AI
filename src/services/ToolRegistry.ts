@@ -1,15 +1,11 @@
-// src/services/ToolRegistry.ts
-import { CopilotTool } from "@type/copilot.types";
-// Use DEFAULT imports based on TS error suggestions
-import settingsStore, { SettingKeys } from "@store/settingsStore";
-// Import others if needed, assuming default exports
-// import chaptersStore from "@store/chaptersStore";
-// import materialsStore from "@store/materialsStore";
 import { availableThemes } from "@contexts/ThemeContext";
 import { FunctionCall, SchemaType as TYPE } from "@google/generative-ai";
 import { chaptersStore } from "@store/chaptersStore";
 import { materialsStore } from "@store/materialsStore";
+import settingsStore, { SettingKeys } from "@store/settingsStore";
 import { subjectsStore } from "@store/subjectsStore";
+import { CopilotTool } from "@type/copilot.types";
+import { blobToBase64 } from "@utils/utils";
 
 /**
  * Central registry for all custom tools the AI can use.
@@ -65,7 +61,7 @@ export const toolRegistry: CopilotTool[] = [
             }
             try {
                 let parsedSettings = settings;
-                try { parsedSettings = settings.map(s => ({ key: s.key, value: JSON.parse(s.value) })) } catch (error) {/* ignore error parsing the settings */}
+                try { parsedSettings = settings.map(s => ({ key: s.key, value: JSON.parse(s.value) })) } catch (error) {/* ignore error parsing the settings */ }
                 await settingsStore.setMultipleSettings(parsedSettings);
                 return { success: true, message: `Settings updated successfully.` };
             } catch (error) {
@@ -148,6 +144,58 @@ export const toolRegistry: CopilotTool[] = [
             }
         }
     },
+
+    // --- Miscellaneous Tools ---
+    {
+        name: "web_search",
+        description: "Performs a web search using the provided query and returns result from duckduckgo's instant answer API.",
+        parameters: {
+            type: TYPE.OBJECT,
+            properties: {
+                query: { type: TYPE.STRING, description: "The search query in concise natural language." },
+            },
+            required: ["query"],
+        },
+        execute: async ({ query }: { query: string }) => {
+            // Use a free, API-keyless search engine like DuckDuckGo's instant answer API
+            try {
+                const data = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json`).then(r => r.json());
+                return { ...data };
+            } catch (error) {
+                console.error("Web search failed:", error);
+                return { error: `Web search failed: ${error instanceof Error ? error.message : String(error)}` };
+            }
+        }
+    },
+    {
+        name: "fetch_url",
+        description: "Fetches the content of a URL and parses it.",
+        parameters: {
+            type: TYPE.OBJECT,
+            properties: {
+                url: { type: TYPE.STRING, description: "The URL of the web page to fetch." },
+                parseAs: { type: TYPE.STRING, enum: ["text", "json", "html", "image"], format: "enum", description: "The format to parse the response as. (default: text (extracts all textContent))" },
+            },
+            required: ["url"],
+        },
+        execute: async ({ url, parseAs = "text" }: { url: string, parseAs?: string }) => {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                let data;
+                switch (parseAs) {
+                    case "json": data = await response.json(); break;
+                    case "html": data = await response.text(); break;
+                    case "image": data = await response.blob().then(blobToBase64); break;
+                    default: data = await (new DOMParser()).parseFromString(await response.text(), "text/html").body.textContent; break;
+                }
+                return { ...data || data };
+            } catch (error) {
+                console.error("Fetch URL failed:", error);
+                return { error: `Fetch URL failed: ${error instanceof Error ? error.message : String(error)}` };
+            }
+        }
+    }
 ];
 
 /**

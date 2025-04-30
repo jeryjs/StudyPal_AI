@@ -250,10 +250,11 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
 
             // Build system instruction with context awareness (including attachments)
             const attachmentContext = currentChat?.attachments.map(a => `- ${a.name} (ID: ${a.id}, Type: ${a.type})`).join('\\n') || 'None';
-            const systemInstruction = `You are Study Pal's AI Copilot. Be helpful and concise. Prioritise using the user's materials over your own knowledge.
-                Available attached materials:
-                ${attachmentContext}
-                ${pageContext ? `You are currently on a page described as: "${pageContext}". Always consider this when answering location questions.` : ''}`;
+            const systemInstruction = `You are Study Pal's AI Copilot. Be helpful and concise. Prioritise using the user's materials over your own knowledge. Unless explicitly asked, do not provide information about your own knowledge or internal workings like IDs.
+                Always ask for clarification if the user is confused. If you don't know the answer, say so. If you are unsure, ask the user to clarify.
+                If you are unable to answer a question, suggest the user provide their materials or ask for help. If you have access to the user's materials, use them to answer questions. Utilise the page context and any attachments provided for the current chat.
+                Available attached materials: [${attachmentContext}]
+                Current Page context: ["${pageContext}"].`;
 
             // Create API history from the current chat's messages
             // Ensure the user message we just added is included for the API call
@@ -391,10 +392,11 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
                 await addMessage(modelAfterToolsPlaceholder);
 
                 // Create a new history array for the next API call
-                // Include the original user message, the model's function call(s), and the tool response(s)
+                // Include the original history, the model's function call message, and the tool response message
                 const newApiHistory = [
-                    ...history, // Includes original user prompt and model's function call message
-                    toolResponseMessage // Add the tool response message
+                    ...history, // Original history (e.g., [userMessage])
+                    currentMessage, // The message containing the functionCall part(s)
+                    toolResponseMessage // The message containing the functionResponse part(s)
                 ];
 
                 // Process model response to tool execution

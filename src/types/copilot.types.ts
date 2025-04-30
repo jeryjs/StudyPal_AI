@@ -1,4 +1,4 @@
-import { Part } from "@google/generative-ai";
+import { FunctionDeclarationSchema, Part } from "@google/generative-ai";
 
 // Define the available Copilot models
 export enum CopilotModel {
@@ -26,7 +26,6 @@ export interface CopilotMessage {
     timestamp: number; // Unix timestamp (ms)
     isLoading?: boolean; // Optional flag for streaming state
     error?: string; // Optional error message
-    suggestions?: CopilotSuggestion[]; // Optional follow-up suggestions generated with the LITE model
     modelUsed?: CopilotModel; // Track which model generated the response
     // reasoningMetadata?: unknown; // Placeholder removed for cleanup
 }
@@ -50,13 +49,14 @@ export interface Chat {
     attachments: ChatAttachment[]; // Array of attached materials
     createdOn: number; // Timestamp of creation or first message
     lastModified: number; // Timestamp of the last message or modification
+    suggestions?: CopilotSuggestion[]; // Optional follow-up suggestions generated with the LITE model
 }
 
 // Represents a tool that the AI can call
 export interface CopilotTool {
     name: string;
     description: string;
-    parameters: object; // JSON schema for parameters
+    parameters: FunctionDeclarationSchema; // JSON schema for parameters
     execute: (args: any) => Promise<any>; // The actual function to run
 }
 

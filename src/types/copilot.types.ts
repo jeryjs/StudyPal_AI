@@ -1,9 +1,9 @@
-import { FunctionCallPart, FunctionResponsePart, Part } from "@google/generative-ai";
+import { Part } from "@google/generative-ai";
 
 // Define the available Copilot models
 export enum CopilotModel {
-    LITE = 'gemini-2.0-flash-lite',
-    REGULAR = 'gemini-2.0-flash',
+    REGULAR = 'gemini-2.0-flash-exp',   // use exp since flash is often overloaded
+    LITE = 'gemini-2.0-flash-lite-preview-02-05',   // less often overloaded
     REASON = 'gemini-2.5-flash-preview-04-17',
     LARGE = 'gemini-2.5-pro-exp-03-25',
 }
@@ -11,10 +11,11 @@ export enum CopilotModel {
 export type CopilotRole = "user" | "model" | "system" | "tool";
 
 // Represents a part of a message (text, function call, or function response)
-export type CopilotMessagePart =
-    | { text: string }
-    | { functionCall: FunctionCallPart }
-    | { functionResponse: FunctionResponsePart };
+// Note: Using Gemini's `Part` type directly in CopilotMessage is simpler
+// export type CopilotMessagePart =
+//     | { text: string }
+//     | { functionCall: FunctionCallPart }
+//     | { functionResponse: FunctionResponsePart };
 
 // Represents a single message in the chat history
 export interface CopilotMessage {
@@ -25,9 +26,30 @@ export interface CopilotMessage {
     timestamp: number; // Unix timestamp (ms)
     isLoading?: boolean; // Optional flag for streaming state
     error?: string; // Optional error message
-    suggestions?: CopilotSuggestion[]; // Optional follow-up suggestions
+    suggestions?: CopilotSuggestion[]; // Optional follow-up suggestions generated with the LITE model
     modelUsed?: CopilotModel; // Track which model generated the response
-    reasoningMetadata?: unknown; // Placeholder for future reasoning/attribution data
+    // reasoningMetadata?: unknown; // Placeholder removed for cleanup
+}
+
+// Represents a material attached to a chat
+export interface ChatAttachment {
+    id: string; // Material ID from materialsStore
+    driveId?: string; // Google Drive ID, if available
+    name: string;
+    type: string; // e.g., 'pdf', 'text', 'link' from MaterialType enum if available
+    // Add other relevant metadata as needed, e.g., chapterId, subjectId
+    chapterId?: string;
+    subjectId?: string;
+}
+
+// Represents a single chat session
+export interface Chat {
+    id: string; // Unique ID for the chat session (e.g., uuid)
+    title: string; // Title of the chat (e.g., first user message, truncated)
+    messages: CopilotMessage[]; // Array of messages in this chat
+    attachments: ChatAttachment[]; // Array of attached materials
+    createdOn: number; // Timestamp of creation or first message
+    lastModified: number; // Timestamp of the last message or modification
 }
 
 // Represents a tool that the AI can call

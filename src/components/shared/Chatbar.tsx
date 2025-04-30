@@ -72,15 +72,19 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
     const inputRef = useRef<HTMLInputElement>(null);
     const [inputValue, setInputValue] = useState('');
     const isExpanded = location.pathname === '/copilot';
-    const currentPage = searchParams.get('page') || '';
+    const currentChatId = searchParams.get('id'); // Get chat ID from URL
 
-    const { sendMessage, isLoading } = useCopilot();
+    const { sendMessage, isLoading, activeChat, setActiveChatId, startNewChat } = useCopilot();
 
+    // Effect to set active chat based on URL on initial load or URL change
     useEffect(() => {
-        if (isExpanded && inputRef.current) {
-            inputRef.current.focus();
+        if (isExpanded) {
+            setActiveChatId(currentChatId);
+            if (inputRef.current) {
+                inputRef.current.focus();
+            }
         }
-    }, [isExpanded]);
+    }, [isExpanded, currentChatId, setActiveChatId]);
 
     // Handle keyboard events (Escape key for closing, c for opening)
     useEffect(() => {
@@ -102,12 +106,18 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isExpanded, navigate, currentPage]);
+    }, [isExpanded, navigate, activeChat]);
 
     const handleFocus = () => {
         if (!isExpanded) {
-            const currentPath = location.pathname + location.search + location.hash;
-            navigate(`/copilot?page=${encodeURIComponent(currentPath.replace(/^\//, ''))}`, { preventScrollReset: true });
+            // Check localStorage for last active chat ID first
+            const lastActiveId = localStorage.getItem('activeCopilotChatId');
+            if (lastActiveId) {
+                navigate(`/copilot?id=${lastActiveId}`, { preventScrollReset: true });
+            } else {
+                // If no last active chat, just navigate to /copilot, context will handle new chat creation on send
+                navigate(`/copilot`, { preventScrollReset: true });
+            }
         }
     };
 
@@ -115,13 +125,7 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
         if (!isExpanded) return;
         inputRef.current?.blur();
         e?.stopPropagation();
-        // Navigate back to the previous page captured in the 'page' query param
-        const previousPage = searchParams.get('page');
-        if (previousPage) {
-            navigate(`/${decodeURIComponent(previousPage)}`, { replace: true }); // Use replace to avoid adding copilot close to history
-        } else {
-            navigate(-1); // Fallback if no previous page recorded
-        }
+        navigate(-1);
     };
 
     const handleSend = async (e: React.FormEvent) => {
@@ -129,7 +133,8 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
         const trimmedInput = inputValue.trim();
         if (trimmedInput && !isLoading) {
             try {
-                // Pass only the input value to sendMessage
+                // If no active chat is set (e.g., navigated to /copilot directly),
+                // sendMessage in context will handle creating a new one.
                 await sendMessage(trimmedInput);
                 setInputValue(''); // Clear input after successful send
             } catch (error) {
@@ -142,16 +147,19 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
     return (
         <MorphContainer expanded={isExpanded} sx={{ left: navbarWidth, width: isExpanded ? `calc(100vw - ${navbarWidth}px)` : 360 }}>
             <MorphCopilotPage show={isExpanded}>
+                {/* Render CopilotPage only when expanded */}
                 {isExpanded && <CopilotPage />}
             </MorphCopilotPage>
 
             <MorphInputBar expanded={isExpanded} elevation={0}>
-                <form onSubmit={handleSend} style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+                <form onSubmit={handleSend} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: theme.spacing(1) }}>
                     {!isExpanded && (
-                        <ChatIcon sx={{ color: theme.palette.text.secondary, mr: 1 }} />
+                        <IconButton onClick={handleFocus} sx={{ color: theme.palette.text.secondary }}>
+                            <ChatIcon />
+                        </IconButton>
                     )}
                     {isExpanded && (
-                        <IconButton onClick={handleClose} size="small" sx={{ color: theme.palette.text.secondary, mr: 1 }}>
+                        <IconButton onClick={handleClose} size="small" sx={{ color: theme.palette.text.secondary }}>
                             <ExpandMoreIcon />
                         </IconButton>
                     )}
@@ -164,9 +172,9 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
                         onChange={e => setInputValue(e.target.value)}
                         autoComplete="off"
                         fullWidth
-                        disabled={isLoading} // Disable input while loading
-                        multiline // Allow multiline input
-                        maxRows={5} // Limit height
+                        disabled={isLoading}
+                        multiline 
+                        maxRows={5}
                         onKeyDown={(e) => {
                             // Submit on Enter, allow Shift+Enter for newline
                             if (e.key === 'Enter' && !e.shiftKey) {
@@ -179,8 +187,8 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
                         type="submit"
                         color="primary"
                         aria-label="Send message"
-                        sx={{ width: !!inputValue.trim() ? 40 : 0, transition: 'all 400ms cubic-bezier(.77,0,.18,1)', opacity: !!inputValue.trim() ? 1 : 0 }}
-                        disabled={!inputValue.trim() || isLoading} // Disable if no input or loading
+                        sx={{ width: !!inputValue.trim() ? 40 : 0, opacity: !!inputValue.trim() ? 1 : 0, transition: 'all 0.2s ease-out' }}
+                        disabled={!inputValue.trim() || isLoading}
                     >
                         <SendIcon />
                     </IconButton>

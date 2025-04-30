@@ -1,8 +1,9 @@
 import { useCopilot } from '@hooks/useCopilot';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import AddIcon from '@mui/icons-material/Add';
 import SendIcon from '@mui/icons-material/Send';
 import ChatIcon from '@mui/icons-material/SmartToyOutlined';
-import { Box, IconButton, Paper, styled, TextField, useTheme } from '@mui/material';
+import { Box, IconButton, Paper, styled, SxProps, TextField, Theme, Tooltip, useTheme } from '@mui/material';
 import CopilotPage from '@pages/CopilotPage';
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
@@ -20,12 +21,13 @@ const MorphContainer = styled(Box)<{ expanded: boolean }>(({ theme, expanded }) 
     boxShadow: expanded ? theme.shadows[8] : theme.shadows[2],
     transition: 'all 400ms cubic-bezier(.77,0,.18,1)',
     overflowY: expanded ? 'scroll' : 'hidden',
+    overflowX: 'clip',
     display: 'flex',
     flexDirection: 'column',
 }));
 
 const MorphInputBar = styled(Paper)<{ expanded: boolean }>(({ theme, expanded }) => ({
-    position: expanded ? 'sticky' : 'relative',
+    position: 'sticky',
     bottom: 0, left: 0, right: 0,
     display: 'inline',
     alignItems: 'center',
@@ -50,13 +52,53 @@ const MorphInput = styled(TextField)(({ theme }) => ({
     },
 }));
 
-const MorphCopilotPage = styled(Box)<{ show: boolean }>(({ show }) => ({
+const MorphCopilotPage = styled(Paper)<{ show: boolean }>(({ show, theme }) => ({
     position: 'relative',
     flex: 1,
+    backgroundColor: theme.palette.background.default,
     opacity: show ? 1 : 0,
     transform: show ? 'translateY(0)' : 'translateY(24px)',
-    transition: 'opacity 400ms cubic-bezier(.77,0,.18,1), transform 400ms cubic-bezier(.77,0,.18,1)',
+    transition: 'all 400ms cubic-bezier(.77,0,.18,1)',
 }));
+
+// Chatbar Action Button component
+const ChatbarActionButton: React.FC<{
+    show: boolean;
+    title: string;
+    onClick?: (e?: React.MouseEvent) => void;
+    type?: 'button' | 'submit';
+    size?: 'small' | 'medium';
+    disabled?: boolean;
+    sx?: SxProps<Theme>;
+    children: React.ReactNode;
+}> = ({ show, title, onClick, type = 'button', size = 'small', disabled = false, sx, children }) => {
+    // Base styles including transition
+    const baseSx: SxProps<Theme> = {
+        color: 'text.secondary',
+        opacity: show ? 1 : 0,
+        padding: show ? 'auto' : 0,
+        width: show ? 'auto' : 0,
+        transform: show ? 'scale(1)' : 'scale(0.8)',
+        transition: 'all 400ms cubic-bezier(.77,0,.18,1)',
+        // Merge custom sx
+        ...sx,
+    };
+
+    return (
+        <Tooltip title={title} arrow placement="top" enterDelay={500} leaveDelay={100}>
+            <IconButton
+                type={type}
+                onClick={onClick}
+                size={size}
+                disabled={disabled || !show} // Also disable if not shown
+                sx={baseSx}
+                aria-label={title}
+            >
+                {children}
+            </IconButton>
+        </Tooltip>
+    );
+};
 
 // --- Chatbar Component ---
 interface ChatbarProps {
@@ -80,9 +122,8 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
     useEffect(() => {
         if (isExpanded) {
             setActiveChatId(currentChatId);
-            if (inputRef.current) {
-                inputRef.current.focus();
-            }
+            // Delay focus slightly to ensure transition completes
+            setTimeout(() => inputRef.current?.focus(), 400);
         }
     }, [isExpanded, currentChatId, setActiveChatId]);
 
@@ -112,12 +153,8 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
         if (!isExpanded) {
             // Check localStorage for last active chat ID first
             const lastActiveId = localStorage.getItem('activeCopilotChatId');
-            if (lastActiveId) {
-                navigate(`/copilot?id=${lastActiveId}`, { preventScrollReset: true });
-            } else {
-                // If no last active chat, just navigate to /copilot, context will handle new chat creation on send
-                navigate(`/copilot`, { preventScrollReset: true });
-            }
+            const targetPath = lastActiveId ? `/copilot?id=${lastActiveId}` : '/copilot';
+            navigate(targetPath, { preventScrollReset: true });
         }
     };
 
@@ -143,26 +180,36 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
             }
         }
     };
+    
+    const handleStartNewChat = () => {
+        startNewChat();
+        setInputValue('');
+        inputRef.current?.focus();
+    };
+
+    const hasInput = !!inputValue.trim();
 
     return (
         <MorphContainer expanded={isExpanded} sx={{ left: navbarWidth, width: isExpanded ? `calc(100vw - ${navbarWidth}px)` : 360 }}>
             <MorphCopilotPage show={isExpanded}>
-                {/* Render CopilotPage only when expanded */}
-                {isExpanded && <CopilotPage />}
+                <CopilotPage />
             </MorphCopilotPage>
 
             <MorphInputBar expanded={isExpanded} elevation={0}>
                 <form onSubmit={handleSend} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: theme.spacing(1) }}>
-                    {!isExpanded && (
-                        <IconButton onClick={handleFocus} sx={{ color: theme.palette.text.secondary }}>
-                            <ChatIcon />
-                        </IconButton>
-                    )}
-                    {isExpanded && (
-                        <IconButton onClick={handleClose} size="small" sx={{ color: theme.palette.text.secondary }}>
-                            <ExpandMoreIcon />
-                        </IconButton>
-                    )}
+                    
+                    {/* Button shown only when collapsed */}
+                    <ChatbarActionButton show={!isExpanded} title="Open Chat (Ctrl+C)" onClick={handleFocus}>
+                        <ChatIcon />
+                    </ChatbarActionButton>
+
+                    {/* Buttons shown only when expanded */}
+                    <ChatbarActionButton show={isExpanded} title="Start New Chat" onClick={handleStartNewChat}>
+                        <AddIcon />
+                    </ChatbarActionButton>
+                    <ChatbarActionButton show={isExpanded} title="Collapse Chat (Esc)" onClick={handleClose}>
+                        <ExpandMoreIcon />
+                    </ChatbarActionButton>
                     <MorphInput
                         inputRef={inputRef}
                         variant="outlined"
@@ -173,7 +220,7 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
                         autoComplete="off"
                         fullWidth
                         disabled={isLoading}
-                        multiline 
+                        multiline
                         maxRows={5}
                         onKeyDown={(e) => {
                             // Submit on Enter, allow Shift+Enter for newline
@@ -183,15 +230,18 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
                             }
                         }}
                     />
-                    <IconButton
-                        type="submit"
-                        color="primary"
-                        aria-label="Send message"
-                        sx={{ width: !!inputValue.trim() ? 40 : 0, opacity: !!inputValue.trim() ? 1 : 0, transition: 'all 0.2s ease-out' }}
-                        disabled={!inputValue.trim() || isLoading}
+
+                    {/* Send Button */}
+                    <ChatbarActionButton
+                        show={hasInput} // Show based on input value
+                        title="Send Message (Enter)"
+                        type="submit" // Set type to submit
+                        size="medium"
+                        disabled={!hasInput || isLoading}
+                        sx={{ color: 'primary.main', transition: 'all 0.2s ease-out' }}
                     >
                         <SendIcon />
-                    </IconButton>
+                    </ChatbarActionButton>
                 </form>
             </MorphInputBar>
         </MorphContainer>

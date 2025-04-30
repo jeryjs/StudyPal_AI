@@ -1,9 +1,9 @@
 // src/services/GeminiService.ts
-import { BaseAIService } from "./BaseAIService";
-import { CopilotMessage, CopilotTool, CopilotModel } from "../types/copilot.types";
-import { GoogleGenerativeAI, FunctionDeclarationSchema, FunctionDeclaration, Content, GenerateContentResponse, Part } from "@google/generative-ai";
+import { Content, FunctionDeclaration, FunctionDeclarationSchema, GenerateContentResponse, GoogleGenerativeAI } from "@google/generative-ai";
+import { BaseAIService } from "@services/BaseAIService";
+import { CopilotMessage, CopilotModel, CopilotTool } from "@type/copilot.types";
 // Use DEFAULT import based on TS error suggestion
-import settingsStore from "../store/settingsStore"; // Assuming default export
+import settingsStore from "@store/settingsStore"; // Assuming default export
 
 // Helper to convert our CopilotMessage history to Gemini's Content format
 const convertMessagesToGeminiContent = (history: CopilotMessage[]): Content[] => {
@@ -48,7 +48,7 @@ export class GeminiService extends BaseAIService {
         console.log("Initializing GeminiService...");
         try {
             // Access property directly from the default imported store instance
-            const apiKey = await settingsStore.geminiApiKey;
+            const apiKey = import.meta.env.MODE === 'test' ? import.meta.env.VITE_GEMINI_API_KEY : await settingsStore.geminiApiKey;
             if (apiKey) {
                 this.genAI = new GoogleGenerativeAI(apiKey);
                 console.log("GeminiService Initialized Successfully.");
@@ -56,8 +56,8 @@ export class GeminiService extends BaseAIService {
                 console.error("Gemini API Key not found in settings. Gemini features will be disabled.");
             }
         } catch (error) {
-             console.error("Failed to initialize GeminiService:", error);
-             // Consider setting a state indicating initialization failure
+            console.error("Failed to initialize GeminiService:", error);
+            // Consider setting a state indicating initialization failure
         } finally {
             this.isInitializing = false;
         }
@@ -79,10 +79,10 @@ export class GeminiService extends BaseAIService {
             // Attempt re-initialization if failed previously
             await this.initialize();
             if (!this.genAI) {
-                 throw new Error("Gemini AI Service not initialized. API Key might be missing or initialization failed.");
+                throw new Error("Gemini AI Service not initialized. API Key might be missing or initialization failed.");
             }
         }
-        
+
         const modelConfig = {
             model: modelId,
             ...(systemInstruction && { systemInstruction: { role: 'user', parts: [{ text: systemInstruction }] } }), // Gemini prefers 'user' for system instructions in some contexts
@@ -102,7 +102,7 @@ export class GeminiService extends BaseAIService {
 
         const lastMessage = history[history.length - 1];
         if (!lastMessage || (lastMessage.role !== 'user' && lastMessage.role !== 'tool')) {
-             // Allow 'tool' role if sending function responses back
+            // Allow 'tool' role if sending function responses back
             throw new Error("Last message in history must be from the user or a tool response.");
         }
         console.log("Sending last message parts:", JSON.stringify(lastMessage.parts, null, 2)); // Debugging
@@ -119,31 +119,31 @@ export class GeminiService extends BaseAIService {
             console.error("Error sending message stream to Gemini:", error);
             // Improve error reporting if possible (e.g., check error structure)
             if (error instanceof Error) {
-                 throw new Error(`Gemini API Error: ${error.message}`);
+                throw new Error(`Gemini API Error: ${error.message}`);
             } else {
-                 throw new Error("An unknown error occurred while communicating with the Gemini API.");
+                throw new Error("An unknown error occurred while communicating with the Gemini API.");
             }
         }
     }
 
     // Optional implementation for countTokens (if needed later)
     async countTokens(history: CopilotMessage[]): Promise<number> {
-       while (this.isInitializing) {
-           await new Promise(resolve => setTimeout(resolve, 100));
-       }
-       if (!this.genAI) {
-           console.warn("GeminiService not initialized, cannot count tokens.");
-           return 0; // Or throw error
-       }
-       try {
-           // Use the default model for token counting for simplicity, or accept a model param if needed
-           const model = this.genAI.getGenerativeModel({ model: this.defaultModel });
-           const contents = convertMessagesToGeminiContent(history);
-           const { totalTokens } = await model.countTokens({ contents });
-           return totalTokens;
-       } catch (error) {
-           console.error("Failed to count tokens:", error);
-           return 0; // Or re-throw
-       }
+        while (this.isInitializing) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        if (!this.genAI) {
+            console.warn("GeminiService not initialized, cannot count tokens.");
+            return 0; // Or throw error
+        }
+        try {
+            // Use the default model for token counting for simplicity, or accept a model param if needed
+            const model = this.genAI.getGenerativeModel({ model: this.defaultModel });
+            const contents = convertMessagesToGeminiContent(history);
+            const { totalTokens } = await model.countTokens({ contents });
+            return totalTokens;
+        } catch (error) {
+            console.error("Failed to count tokens:", error);
+            return 0; // Or re-throw
+        }
     }
 }

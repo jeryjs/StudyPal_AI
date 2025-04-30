@@ -2,7 +2,7 @@ import { FunctionCallPart, FunctionResponsePart, Part } from "@google/generative
 
 // Define the available Copilot models
 export enum CopilotModel {
-    LITE = 'gemini-2.5-flash-lite',
+    LITE = 'gemini-2.0-flash-lite',
     REGULAR = 'gemini-2.0-flash',
     REASON = 'gemini-2.5-flash',
     LARGE = 'gemini-2.5-pro',

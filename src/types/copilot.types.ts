@@ -4,8 +4,8 @@ import { FunctionCallPart, FunctionResponsePart, Part } from "@google/generative
 export enum CopilotModel {
     LITE = 'gemini-2.0-flash-lite',
     REGULAR = 'gemini-2.0-flash',
-    REASON = 'gemini-2.5-flash',
-    LARGE = 'gemini-2.5-pro',
+    REASON = 'gemini-2.5-flash-preview-04-17',
+    LARGE = 'gemini-2.5-pro-exp-03-25',
 }
 
 export type CopilotRole = "user" | "model" | "system" | "tool";

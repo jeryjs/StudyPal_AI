@@ -232,7 +232,7 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     const cloud = useCloudStorage();
 
     const { setPageContext } = useCopilot();
-    useEffect(() => setPageContext(`Viewing chapter: ${selectedChapter?.name} (${selectedChapter?.id}) from subjectId: ${selectedChapter?.subjectId}`), [setPageContext, selectedChapter]);
+    useEffect(() => setPageContext({ page: 'materials', activeItem: { id: selectedChapter?.id || '', type: 'chapter' }, description: `Viewing chapter: ${selectedChapter?.name} from subjectId: ${selectedChapter?.subjectId}` }), [setPageContext, selectedChapter]);
 
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, material: Material) => {
         event.stopPropagation(); // Prevent card click

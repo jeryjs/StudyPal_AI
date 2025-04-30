@@ -35,7 +35,7 @@ const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({ open, onClose, ma
     const [isLoading, setIsLoading] = useState(false);
     
     const { setPageContext } = useCopilot();
-    useEffect(() => setPageContext(`viewing material: ${material.name} (${material.id}) from chapterId: ${material.chapterId}`), [setPageContext, material]);
+    useEffect(() => setPageContext({page: 'materials', activeItem: {id: material.id, type: 'material'}, description: `viewing material: ${material.name} from chapterId: ${material.chapterId}`}), [setPageContext, material]);
 
     // Create Object URL for non-text types
     const objectUrl = useMemo(() => {

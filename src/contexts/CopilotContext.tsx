@@ -3,7 +3,7 @@ import { FunctionCallPart, FunctionResponsePart } from '@google/generative-ai';
 import { GeminiService } from '@services/GeminiService';
 import { executeTool as executeToolFromRegistry, toolRegistry } from '@services/ToolRegistry';
 import copilotStore from '@store/copilotStore';
-import { Chat, ChatAttachment, CopilotMessage, CopilotModel, CopilotSuggestion, CopilotTool } from '@type/copilot.types';
+import { Chat, ChatAttachmentWithContent, CopilotMessage, CopilotModel, CopilotSuggestion, CopilotTool, PageContext } from '@type/copilot.types';
 import React, { createContext, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -15,10 +15,10 @@ interface CopilotContextType {
     isLoading: boolean;
     error: string | null;
     currentModel: CopilotModel;
-    sendMessage: (prompt: string, args?: { attachments?: ChatAttachment[]; model?: CopilotModel }) => Promise<void>;
+    sendMessage: (prompt: string, args?: { attachments?: ChatAttachmentWithContent[]; model?: CopilotModel }) => Promise<void>;
     startNewChat: () => Promise<string>;
     setActiveChatId: (chatId: string | null) => void;
-    setPageContext: (context: string | null) => void;
+    setPageContext: (context: PageContext | null) => void;
     setCurrentModel: (model: CopilotModel) => void;
     listChats: () => Promise<Chat[]>;
     deleteChat: (chatId: string) => Promise<void>;
@@ -36,7 +36,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     const [suggestions, setSuggestions] = useState<CopilotSuggestion[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
-    const [pageContext, setPageContext] = useState<string | null>(null);
+    const [pageContext, setPageContext] = useState<PageContext | null>(null);
     const [currentModel, setCurrentModel] = useState<CopilotModel>(CopilotModel.REGULAR);
 
     const aiService = useMemo(() => new GeminiService(), []);
@@ -183,7 +183,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     }, [activeChatId]);
 
     // --- Handle AI message streaming and tool calling ---
-    const sendMessage = useCallback(async (prompt: string, args?: {attachments?: ChatAttachment[], model?: CopilotModel}) => {
+    const sendMessage = useCallback(async (prompt: string, args?: { attachments?: ChatAttachmentWithContent[], model?: CopilotModel }) => {
         setIsLoading(true);
         setError(null);
         setSuggestions([]);
@@ -253,11 +253,13 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
             // Build system instruction with context awareness (including attachments)
             const attachmentContext = currentChat?.attachments.map(a => `- ${a.name} (ID: ${a.id}, Type: ${a.type})`).join('\\n') || 'None';
             const systemInstruction = `You are Study Pal's AI Copilot. Be helpful and concise. Prioritise using the user's materials over your own knowledge. Unless explicitly asked, do not provide information about your own knowledge or internal workings like IDs.
+                \n
+                Available attached materials: [${attachmentContext}]
+                Current Page context: ["${pageContext}"] (activeItemId, if available, is the ID of the currently open item (like material, subject or chapter) on the page).
+                \n
                 You are smart and highly personalised to the user, so you often infer user's intentions and avoid asking confirmations again and again. You are capable of utilising your own personal ideas (this can be random each time, but user doesnt need to know that its random).
                 Smartly infer the tools usage. Theres always a workaround with the tools.. so even if it looks like a required tool is not available, think out of the box for a workaround. For example, you can actually set whatever custom theme the user wants (or edit current themes) using the set_settings tool on a custom theme using the get_available_themes tool to get the syntax for defining a new theme.
-                If you are unable to answer a question, suggest the user provide their materials or ask for help. If you have access to the user's materials, use them to answer questions. Utilise the page context and any attachments provided for the current chat.
-                Available attached materials: [${attachmentContext}]
-                Current Page context: ["${pageContext}"].`;
+                If you are unable to answer a question, suggest the user provide their materials or ask for help. If you have access to the user's materials, use them to answer questions. Utilise the page context and any attachments provided for the current chat.`;
 
             // Create API history from the current chat's messages
             // Ensure the user message we just added is included for the API call

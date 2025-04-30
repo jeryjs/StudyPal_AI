@@ -1,4 +1,5 @@
 import { FunctionDeclarationSchema, Part } from "@google/generative-ai";
+import { Material } from "./db.types";
 
 // Define the available Copilot models
 export enum CopilotModel {
@@ -33,12 +34,11 @@ export interface CopilotMessage {
 // Represents a material attached to a chat
 export interface ChatAttachment {
     id: string; // Material ID from materialsStore
-    driveId?: string; // Google Drive ID, if available
     name: string;
-    type: string; // e.g., 'pdf', 'text', 'link' from MaterialType enum if available
-    // Add other relevant metadata as needed, e.g., chapterId, subjectId
-    chapterId?: string;
-    subjectId?: string;
+    type: string; // Material type (e.g., FILE, LINK, etc.)
+}
+export interface ChatAttachmentWithContent extends ChatAttachment {
+    content: Material['content']; // Content of the material
 }
 
 // Represents a single chat session
@@ -65,4 +65,10 @@ export interface CopilotSuggestion {
     id: string;
     text: string; // e.g., "Summarize this document?"
     action: () => void; // Function to execute when suggestion is clicked
+}
+
+export interface PageContext {
+    page: 'settings' | 'subjects' | 'chapters' | 'materials';
+    description: string; // Description of the page (e.g., "Viewing materials for Chapter 1")
+    activeItem?: { id: string, type: 'subject' | 'chapter' | 'material' };
 }

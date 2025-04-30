@@ -85,12 +85,12 @@ const ChaptersPage: React.FC = () => {
     // Set page context when subject is found or changes
     useEffect(() => {
         if (subject) {
-            setPageContext(`Viewing chapters for the subject: "${subject.name}" (id: ${subject.id}).`);
+            setPageContext({page: 'chapters', activeItem: {id: subject.id, type: 'subject'}, description: `Viewing chapters for the subject: "${subject.name}" (id: ${subject.id}).`});
         } else if (subjectId) {
             // Fallback if subject name isn't loaded yet
-            setPageContext(`Viewing chapters for subject ID: ${subjectId}.`);
+            setPageContext({page: 'chapters', activeItem: {id: subjectId, type: 'subject'}, description: `Viewing chapters for subject ID: ${subjectId}.`});
         } else {
-            setPageContext('Viewing chapters (unknown subject).');
+            setPageContext({page: 'chapters', description: `Viewing chapters (unknown subject).`});
         }
     }, [subject, subjectId, setPageContext]); // Update when subject or ID changes
 

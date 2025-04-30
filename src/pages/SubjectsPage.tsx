@@ -424,7 +424,7 @@ export default function SubjectsPage() {
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning' }>({ open: false, message: '', severity: 'success' });
 
     useEffect(() => {
-        setPageContext('Viewing the list of all subjects.');
+        setPageContext({page: 'subjects', description: 'Viewing the list of all subjects.'});
     }, [setPageContext]); // Dependency array ensures this runs once on mount/unmount
 
     // Fetch stats for visible subjects

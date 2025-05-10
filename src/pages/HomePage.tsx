@@ -71,7 +71,7 @@ const HomePage: React.FC = () => {
 
 
   return (
-    <Box sx={{ m: { xs: 1, md: 4 } }}>
+    <Box sx={{ m: { xs: 1, md: 4, display:'flex' } }}>
       {/* Main Content Area */}
       <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>

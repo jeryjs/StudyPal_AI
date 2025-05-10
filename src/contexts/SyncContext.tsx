@@ -227,7 +227,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
   // --- Database Change Listener & Auto-Backup with improved debounce logic --- 
   useEffect(() => {
     const handleDbChange = () => {
-      console.log('Detected DB change.');
+      // console.log('Detected DB change.');
       isDbDirtyRef.current = true; // Mark DB as dirty
 
       // Clear any existing backup timeout
@@ -245,7 +245,7 @@ export const SyncContextProvider: React.FC<{ children: ReactNode }> = ({ childre
           backupDatabaseToDrive(); // Trigger the backup immediately
         } else {
           // Subsequent changes are debounced
-          console.log(`Scheduling auto-backup in ${DEBOUNCE_DELAY}ms`);
+          // console.log(`Scheduling auto-backup in ${DEBOUNCE_DELAY}ms`);
           backupTimeoutRef.current = setTimeout(() => {
             console.log('Debounce timer expired, triggering auto-backup.');
             backupDatabaseToDrive(); // Trigger the backup after delay

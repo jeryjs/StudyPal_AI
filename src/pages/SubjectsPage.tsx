@@ -1,5 +1,4 @@
 import AddIcon from '@mui/icons-material/Add';
-import CloseIcon from '@mui/icons-material/Close'; // Keep if used elsewhere, otherwise remove
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import FolderIcon from '@mui/icons-material/Folder';
@@ -19,7 +18,6 @@ import {
     DialogContent,
     DialogContentText,
     DialogTitle,
-    Divider,
     Fab,
     Grid,
     IconButton,
@@ -45,15 +43,15 @@ import {
     useMediaQuery,
     useTheme
 } from '@mui/material';
-import { useNavigate } from 'react-router';
-import React, { useEffect, useState, useCallback, useMemo, Fragment } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import React, { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 
 // Import our hooks and types
+import { useCopilot } from '@hooks/useCopilot';
 import { useSubjects } from '@hooks/useSubjects';
 import { Subject } from '@type/db.types';
-import { generateColorFromString, formatBytes } from '@utils/utils';
-import slugify from '@utils/Slugify';
+import { formatBytes, generateColorFromString } from '@utils/utils';
 
 // --- Styled Components ---
 
@@ -195,7 +193,7 @@ const SubjectCardDisplay: React.FC<SubjectCardDisplayProps> = React.memo(({ subj
                         </Typography>
                     </>
                 ) : (
-                     <LinearProgress sx={{ height: 8, borderRadius: 4, bgcolor: 'action.disabledBackground' }} /> // Show placeholder bar while loading
+                    <LinearProgress sx={{ height: 8, borderRadius: 4, bgcolor: 'action.disabledBackground' }} /> // Show placeholder bar while loading
                 )}
             </Box>
 
@@ -324,7 +322,7 @@ const SubjectDialog: React.FC<SubjectDialogProps> = ({ open, onClose, onSubmit, 
                             disabled={isSubmitting}
                             helperText="Type and press Enter or Add"
                         />
-                        <Button onClick={handleAddCategory} variant="outlined" size="small" disabled={isSubmitting || !newCategory.trim()} sx={{ mb: 'auto', mt: 1.5}}>Add</Button>
+                        <Button onClick={handleAddCategory} variant="outlined" size="small" disabled={isSubmitting || !newCategory.trim()} sx={{ mb: 'auto', mt: 1.5 }}>Add</Button>
                     </Box>
                     {/* Optional: Suggest existing categories */}
                     {/* <Autocomplete ... /> */}
@@ -352,7 +350,7 @@ const DeleteConfirmationDialog: React.FC<DeleteConfirmationDialogProps> = ({ ope
     const [isDeleting, setIsDeleting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-     useEffect(() => {
+    useEffect(() => {
         if (open) {
             setIsDeleting(false);
             setError(null);
@@ -376,7 +374,7 @@ const DeleteConfirmationDialog: React.FC<DeleteConfirmationDialogProps> = ({ ope
         <StyledDialog open={open} onClose={onClose} TransitionProps={{ onExited: () => { setIsDeleting(false); setError(null); } }}>
             <DialogTitle>Confirm Deletion</DialogTitle>
             <DialogContent>
-                 {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+                {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
                 <DialogContentText>
                     Are you sure you want to delete the subject "<strong>{subjectName}</strong>"?
                     This action is irreversible and will also delete all associated chapters and materials.
@@ -410,6 +408,7 @@ export default function SubjectsPage() {
         deleteSubject,
         getSubjectStats
     } = useSubjects();
+    const { setPageContext } = useCopilot();
 
     const [viewMode, setViewMode] = useState<'grid' | 'list'>(localStorage.getItem('subjectsViewMode') as 'grid' | 'list' || 'grid');
     const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -424,6 +423,9 @@ export default function SubjectsPage() {
     const [statsLoading, setStatsLoading] = useState<Record<string, boolean>>({});
     const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning' }>({ open: false, message: '', severity: 'success' });
 
+    useEffect(() => {
+        setPageContext({page: 'subjects', description: 'Viewing the list of all subjects.'});
+    }, [setPageContext]); // Dependency array ensures this runs once on mount/unmount
 
     // Fetch stats for visible subjects
     useEffect(() => {
@@ -478,7 +480,7 @@ export default function SubjectsPage() {
         setEditingSubject(null); // Clear editing state when closing
     };
 
-     const handleOpenDeleteDialog = (subject: Subject) => {
+    const handleOpenDeleteDialog = (subject: Subject) => {
         setSubjectToDelete(subject);
         setDeleteDialogOpen(true);
     };
@@ -534,7 +536,7 @@ export default function SubjectsPage() {
         <Grid container spacing={isMobile ? 2 : 3}>
             {filteredSubjects.map((subject) => (
                 // Use Grid item prop correctly
-                <Grid size={{xs:12, sm:6, md:4}} key={subject.id}>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={subject.id}>
                     <SubjectCardDisplay
                         subject={subject}
                         stats={subjectStats[subject.id] || null}
@@ -546,7 +548,7 @@ export default function SubjectsPage() {
             ))}
             {/* Add New Subject Card */}
             {/* Use Grid item prop correctly */}
-            <Grid size={{xs:12, sm:6, md:4}}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <AddSubjectCard onClick={() => handleOpenDialog()}>
                     <AddIcon />
                     <Typography>Add New Subject</Typography>
@@ -589,23 +591,23 @@ export default function SubjectsPage() {
                                 secondary={
                                     <Typography component="span" variant="body2" color="text.secondary" sx={{ display: 'block' }}> {/* Ensure secondary text wraps */}
                                         {statsLoading[subject.id] ? 'Loading stats...' :
-                                         subjectStats[subject.id]
-                                            // Include size in secondary text
-                                            ? `${subjectStats[subject.id].chaptersCount} Ch • ${subjectStats[subject.id].materialsCount} Mat • ${Math.round(subjectStats[subject.id].progress)}% complete`
-                                            : 'No stats available'}
+                                            subjectStats[subject.id]
+                                                // Include size in secondary text
+                                                ? `${subjectStats[subject.id].chaptersCount} Ch • ${subjectStats[subject.id].materialsCount} Mat • ${Math.round(subjectStats[subject.id].progress)}% complete`
+                                                : 'No stats available'}
                                         {/* {' • Upd: ' + formatDistanceToNow(subject.lastModified, { addSuffix: true })} */}
                                     </Typography>
                                 }
                                 // Add sx to limit primary text width if needed
                                 primaryTypographyProps={{ noWrap: true, sx: { pr: 1 } }} // Prevent long names overlapping actions
                             />
-                             {/* Optional: Show progress bar in list view - might make it too busy */}
+                            {/* Optional: Show progress bar in list view - might make it too busy */}
                         </ListItem>
                         {/* Removed manual Divider */}
                     </Fragment>
                 ))}
-                 {/* Add button for list view */}
-                 <ListItem onClick={() => handleOpenDialog()} sx={{ justifyContent: 'center', color: 'primary.main', py: 1.5 }}>
+                {/* Add button for list view */}
+                <ListItem onClick={() => handleOpenDialog()} sx={{ justifyContent: 'center', color: 'primary.main', py: 1.5 }}>
                     <AddIcon sx={{ mr: 1 }} /> Add New Subject
                 </ListItem>
             </List>
@@ -642,7 +644,7 @@ export default function SubjectsPage() {
 
 
     return (
-        <Box sx={{ m: {xs: 1, md: 4}}}>
+        <Box sx={{ m: { xs: 1, md: 4 } }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
                 <Typography variant="h4" fontWeight={700}>
                     My Subjects
@@ -691,27 +693,27 @@ export default function SubjectsPage() {
                 </Box>
             )}
             {!subjectsLoading && subjectsError && (
-                 <Alert severity="error" sx={{ mt: 2 }}>
+                <Alert severity="error" sx={{ mt: 2 }}>
                     {/* Added null check for subjectsError */}
                     Error loading subjects: {subjectsError?.message || 'Unknown error'}. Please try refreshing.
                     <Button onClick={fetchSubjects} size="small" sx={{ ml: 1 }}>Refresh</Button>
-                 </Alert>
+                </Alert>
             )}
             {!subjectsLoading && !subjectsError && (
                 <Box> {/* Wrap content in a Box to fix potential fragment issues */}
                     {viewMode === 'grid' ? renderSubjectsGrid() : renderSubjectsList()}
                     {filteredSubjects.length === 0 && selectedCategory !== 'All' && (
-                         <Typography sx={{ textAlign: 'center', mt: 4, color: 'text.secondary' }}>
+                        <Typography sx={{ textAlign: 'center', mt: 4, color: 'text.secondary' }}>
                             No subjects found in the "{selectedCategory}" category.
                         </Typography>
                     )}
-                     {filteredSubjects.length === 0 && subjects.length > 0 && selectedCategory === 'All' && (
-                         <Typography sx={{ textAlign: 'center', mt: 4, color: 'text.secondary' }}>
+                    {filteredSubjects.length === 0 && subjects.length > 0 && selectedCategory === 'All' && (
+                        <Typography sx={{ textAlign: 'center', mt: 4, color: 'text.secondary' }}>
                             No subjects match the current filter. Select "All" categories to see everything.
                         </Typography>
                     )}
-                     {subjects.length === 0 && selectedCategory === 'All' && ( // Check base subjects length for initial empty state
-                         <Typography sx={{ textAlign: 'center', mt: 4, color: 'text.secondary' }}>
+                    {subjects.length === 0 && selectedCategory === 'All' && ( // Check base subjects length for initial empty state
+                        <Typography sx={{ textAlign: 'center', mt: 4, color: 'text.secondary' }}>
                             {viewMode === 'grid'
                                 ? "No subjects yet. Click the '+' card or the button below to add your first one!"
                                 : "No subjects yet. Click 'Add New Subject' below the list."}
@@ -723,14 +725,14 @@ export default function SubjectsPage() {
 
             {/* Add Subject FAB - Show only on desktop grid view */}
             {!isMobile && viewMode === 'grid' && (
-                 <Fab
+                <Fab
                     color="primary"
                     aria-label="add subject"
                     onClick={() => handleOpenDialog()}
                     sx={{ position: 'fixed', bottom: theme.spacing(3), right: theme.spacing(3) }}
-                 >
+                >
                     <AddIcon />
-                 </Fab>
+                </Fab>
             )}
 
 
@@ -768,7 +770,7 @@ export default function SubjectsPage() {
                 subjectName={subjectToDelete?.name || ''}
             />
 
-             {/* Snackbar for feedback */}
+            {/* Snackbar for feedback */}
             <Snackbar
                 open={snackbar.open}
                 autoHideDuration={4000} // Hide after 4 seconds

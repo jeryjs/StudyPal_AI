@@ -1,7 +1,7 @@
 import React, { createContext, useState, useMemo, useContext, ReactNode, useEffect } from 'react';
 import { createTheme, ThemeProvider as MuiThemeProvider, ThemeOptions, Theme, alpha } from '@mui/material/styles';
 import { Box, PaletteMode } from '@mui/material';
-import settingsStore from '@store/settingsStore';
+import settingsStore, { SettingKeys } from '@store/settingsStore';
 
 // --- Base Theme Options ---
 const baseThemeOptions: ThemeOptions = {
@@ -493,59 +493,113 @@ const generateMuiTheme = (appTheme: AppTheme): Theme => {
 // --- Context Provider ---
 export const ThemeContextProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     // Default to Wellness Dark
-    const [currentThemeID, setCurrentThemeName] = useState<string>(wellnessDark.id);
+    const [currentThemeID, setCurrentThemeID] = useState<string>(wellnessDark.id);
+    const [muiTheme, setMuiTheme] = useState<Theme>(generateMuiTheme(wellnessDark));
     const [isLoading, setIsLoading] = useState(true);
-
-    // Ensure isLoading state correctly uses the default background
-    const initialBgColor = (availableThemes.find(async t => t.id === await settingsStore.activeTheme) || wellnessDark).palette.backgroundDefault;
 
     useEffect(() => {
         let isMounted = true;
-        settingsStore.activeTheme.then(async (savedThemeId) => {
-            if (isMounted) {
-                // Ensure the saved theme exists in our current list
-                const themeExists = availableThemes.find(t => t.id === savedThemeId);
-                if (savedThemeId && themeExists) {
-                    setCurrentThemeName(savedThemeId);
-                } else if (!themeExists && savedThemeId) {
-                    // If saved theme is invalid, default to Wellness Dark and save it
-                    console.warn(`Saved theme "${savedThemeId}" not found. Defaulting to ${wellnessDark.id}.`);
-                    setCurrentThemeName(wellnessDark.id);
-                    settingsStore.activeTheme = wellnessDark.id;
+        (async () => {
+            try {
+                const customTheme = await settingsStore.customTheme;
+                availableThemes.push(customTheme);
+
+                let savedThemeId = await settingsStore.activeTheme;
+                if (!savedThemeId) {
+                    // If nothing stored, check system preference
+                    const prefersDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    savedThemeId = prefersDarkMode ? 'wellness-dark' : 'wellness-light';
                 }
-                // If no saved theme, it already defaults to Wellness Dark
-                setIsLoading(false);
+                await applyTheme(savedThemeId);
+            } catch (error) {
+                console.error("Error loading theme setting:", error);
+            } finally {
+                if (isMounted) setIsLoading(false);
             }
-        }).catch(error => {
-            console.error("Error loading theme setting:", error);
-            if (isMounted) setIsLoading(false);
-        });
+        })();
         return () => { isMounted = false; };
     }, []);
 
-    const setTheme = (id: string) => {
-        const themeExists = availableThemes.find(t => t.id === id);
-        if (themeExists) {
-            setCurrentThemeName(id);
-            settingsStore.activeTheme = id; // Save the selected theme
+    // Function to apply a theme based on ID
+    const applyTheme = async (themeId: string) => {
+        let themeToApply: AppTheme | undefined | null = null;
+        if (themeId === 'custom') {
+            themeToApply = availableThemes.find(t => t.id === "custom");
+            if (!themeToApply) {
+                alert("Custom theme selected but no custom theme found in db. Falling back to default theme.");
+                themeId = 'wellness-dark';
+                themeToApply = availableThemes.find(t => t.id === themeId);
+            } else {
+                if (!themeToApply.id) themeToApply.id = 'custom';
+            }
+        } else if (themeId === 'system') {
+            const prefersDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const systemThemeId = prefersDarkMode ? 'wellness-dark' : 'wellness-light';
+            themeToApply = availableThemes.find(t => t.id === systemThemeId);
         } else {
-            console.warn(`Theme "${id}" not found.`);
+            themeToApply = availableThemes.find(t => t.id === themeId);
+        }
+        if (!themeToApply) {
+            console.error(`Theme with ID '${themeId}' not found. Using default.`);
+            themeToApply = wellnessDark;
+            themeId = wellnessDark.id;
+        }
+        try {
+            const newMuiTheme = generateMuiTheme(themeToApply);
+            setMuiTheme(newMuiTheme);
+            setCurrentThemeID(themeId);
+        } catch (error) {
+            console.error("Error creating theme:", error, "Theme options:", themeToApply);
+            setMuiTheme(generateMuiTheme(wellnessDark));
+            setCurrentThemeID(wellnessDark.id);
         }
     };
 
-    const theme = useMemo(() => {
-        const currentAppTheme = availableThemes.find(t => t.id === currentThemeID) || wellnessDark; // Fallback to wellnessDark
-        return generateMuiTheme(currentAppTheme);
-    }, [currentThemeID]);
+    const setTheme = async (id: string) => {
+        await applyTheme(id);
+        if (id !== 'system') {
+            await settingsStore.set(SettingKeys.ACTIVE_THEME, id);
+        } else {
+            await settingsStore.set(SettingKeys.ACTIVE_THEME, 'system');
+        }
+    };
+
+    useEffect(() => {
+        const handleThemeChange = async () => {
+            const customTheme = await settingsStore.customTheme;
+            const customThemeIndex = availableThemes.findIndex(t => t.id === 'custom');
+            if (customThemeIndex !== -1) availableThemes.splice(customThemeIndex, 1);  // Remove old custom theme if it exists
+            if (customTheme) availableThemes.push(customTheme); // Add back latest custom theme
+            
+            await applyTheme(await settingsStore.activeTheme);
+        };
+        settingsStore.onChange(SettingKeys.ACTIVE_THEME, handleThemeChange);
+        settingsStore.onChange(SettingKeys.CUSTOM_THEME, handleThemeChange);
+        return () => {
+            settingsStore.offChange(SettingKeys.ACTIVE_THEME, handleThemeChange);
+            settingsStore.offChange(SettingKeys.CUSTOM_THEME, handleThemeChange);
+        };
+    }, [settingsStore.activeTheme, settingsStore.customTheme]);
+
+    useEffect(() => {
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleChange = async () => {
+            const storedThemeId = await settingsStore.activeTheme;
+            if (storedThemeId === 'system') {
+                applyTheme('system');
+            }
+        };
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
+    }, []);
 
     if (isLoading) {
-        // Use the determined initial background color
-        return <Box sx={{ height: '100vh', width: '100vw', backgroundColor: initialBgColor }} />;
+        return <Box sx={{ height: '100vh', width: '100vw', backgroundColor: wellnessDark.palette.backgroundDefault }} />;
     }
 
     return (
-        <ThemeContext.Provider value={{ theme, setTheme, currentThemeID }}>
-            <MuiThemeProvider theme={theme}>
+        <ThemeContext.Provider value={{ theme: muiTheme, setTheme, currentThemeID }}>
+            <MuiThemeProvider theme={muiTheme}>
                 {children}
             </MuiThemeProvider>
         </ThemeContext.Provider>

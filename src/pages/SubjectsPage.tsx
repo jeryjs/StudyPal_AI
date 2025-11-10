@@ -56,7 +56,7 @@ import { formatBytes, generateColorFromString } from '@utils/utils';
 // --- Styled Components ---
 
 const StyledPaper = styled(Paper)(({ theme }) => ({
-    borderRadius: theme.shape.borderRadius * 2.5,
+    borderRadius: typeof theme.shape.borderRadius === 'number' ? theme.shape.borderRadius * 2.5 : theme.shape.borderRadius,
     transition: 'transform 0.3s ease, box-shadow 0.3s ease',
     overflow: 'hidden', // Ensure content respects border radius
     '&:hover': {

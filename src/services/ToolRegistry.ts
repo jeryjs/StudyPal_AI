@@ -144,6 +144,263 @@ export const toolRegistry: CopilotTool[] = [
             }
         }
     },
+    {
+        name: "get_material_content",
+        description: "Retrieves the full content of a specific material by ID. Use this to read the actual content of notes, files, or links.",
+        parameters: {
+            type: TYPE.OBJECT,
+            properties: {
+                id: { type: TYPE.STRING, description: "The ID of the material to retrieve content for." },
+            },
+            required: ["id"],
+        },
+        execute: async ({ id }: { id: string }) => {
+            try {
+                const material = await materialsStore.get(id);
+                if (!material) return { error: "Material not found." };
+                
+                // Extract content based on type
+                let contentText = "";
+                if (material.content) {
+                    if (typeof material.content.data === 'string') {
+                        contentText = material.content.data;
+                    } else if (material.content.data instanceof Blob) {
+                        // For binary content, we can't return it directly, so return metadata
+                        contentText = `[Binary content - ${material.content.mimeType}, ${material.size} bytes]`;
+                    }
+                }
+                
+                return {
+                    id: material.id,
+                    name: material.name,
+                    type: material.type,
+                    content: contentText,
+                    sourceRef: material.sourceRef,
+                    progress: material.progress,
+                    sizeBytes: material.size,
+                    mimeType: material.content?.mimeType
+                };
+            } catch (error) {
+                console.error("Tool Error (get_material_content):", error);
+                return { error: "Failed to retrieve material content." };
+            }
+        }
+    },
+    {
+        name: "search_materials",
+        description: "Searches for materials by name or content. Useful for finding specific materials across all chapters.",
+        parameters: {
+            type: TYPE.OBJECT,
+            properties: {
+                query: { type: TYPE.STRING, description: "Search query to match against material names and content." },
+                chapterId: { type: TYPE.STRING, description: "Optional chapter ID to limit search to a specific chapter." },
+            },
+            required: ["query"],
+        },
+        execute: async ({ query, chapterId }: { query: string, chapterId?: string }) => {
+            try {
+                const allMaterials = chapterId 
+                    ? await materialsStore.getMaterialsByChapter(chapterId)
+                    : await materialsStore.getAllMaterials();
+                
+                const searchLower = query.toLowerCase();
+                const matches = allMaterials.filter(m => {
+                    // Search in name
+                    if (m.name.toLowerCase().includes(searchLower)) return true;
+                    
+                    // Search in content (if it's text)
+                    if (m.content && typeof m.content.data === 'string') {
+                        return m.content.data.toLowerCase().includes(searchLower);
+                    }
+                    
+                    return false;
+                });
+                
+                return {
+                    query,
+                    matchCount: matches.length,
+                    matches: matches.map(m => ({
+                        id: m.id,
+                        name: m.name,
+                        type: m.type,
+                        chapterId: m.chapterId,
+                        sizeBytes: m.size
+                    }))
+                };
+            } catch (error) {
+                console.error("Tool Error (search_materials):", error);
+                return { error: "Failed to search materials." };
+            }
+        }
+    },
+    {
+        name: "create_material",
+        description: "Creates a new material (note, link, etc.) in a specific chapter. Use this when the user wants to save information or create notes.",
+        parameters: {
+            type: TYPE.OBJECT,
+            properties: {
+                chapterId: { type: TYPE.STRING, description: "The ID of the chapter to create the material in." },
+                name: { type: TYPE.STRING, description: "Name/title of the material." },
+                type: { type: TYPE.STRING, enum: ["text", "link", "file", "pdf", "image", "video", "audio"], format: "enum", description: "Type of material." },
+                content: { type: TYPE.STRING, description: "Content of the material (text content for notes, URL for links)." },
+                sourceRef: { type: TYPE.STRING, description: "Optional reference/source URL." },
+            },
+            required: ["chapterId", "name", "type", "content"],
+        },
+        execute: async ({ chapterId, name, type, content, sourceRef }: { chapterId: string, name: string, type: string, content: string, sourceRef?: string }) => {
+            try {
+                // Validate chapter exists
+                const chapter = await chaptersStore.get(chapterId);
+                if (!chapter) return { error: "Chapter not found." };
+                
+                // Determine mime type based on material type
+                let mimeType = 'text/plain';
+                if (type === 'link') mimeType = 'text/uri-list';
+                
+                const newMaterial = await materialsStore.createMaterial(
+                    name,
+                    chapterId,
+                    type as any, // MaterialType enum
+                    { mimeType, data: content },
+                    sourceRef || undefined,
+                    0 // Initial progress
+                );
+                
+                return {
+                    success: true,
+                    message: `Material "${name}" created successfully.`,
+                    materialId: newMaterial.id,
+                    material: {
+                        id: newMaterial.id,
+                        name: newMaterial.name,
+                        type: newMaterial.type,
+                        chapterId: newMaterial.chapterId
+                    }
+                };
+            } catch (error) {
+                console.error("Tool Error (create_material):", error);
+                return { success: false, error: "Failed to create material." };
+            }
+        }
+    },
+    {
+        name: "update_material",
+        description: "Updates an existing material's content, name, or other properties.",
+        parameters: {
+            type: TYPE.OBJECT,
+            properties: {
+                id: { type: TYPE.STRING, description: "The ID of the material to update." },
+                name: { type: TYPE.STRING, description: "New name for the material (optional)." },
+                content: { type: TYPE.STRING, description: "New content for the material (optional)." },
+                progress: { type: TYPE.NUMBER, description: "New progress value 0-100 (optional)." },
+                sourceRef: { type: TYPE.STRING, description: "New source reference (optional)." },
+            },
+            required: ["id"],
+        },
+        execute: async ({ id, name, content, progress, sourceRef }: { id: string, name?: string, content?: string, progress?: number, sourceRef?: string }) => {
+            try {
+                const existingMaterial = await materialsStore.get(id);
+                if (!existingMaterial) return { error: "Material not found." };
+                
+                const updates: any = { id };
+                if (name !== undefined) updates.name = name;
+                if (progress !== undefined) updates.progress = Math.max(0, Math.min(100, progress));
+                if (sourceRef !== undefined) updates.sourceRef = sourceRef;
+                
+                if (content !== undefined && existingMaterial.content) {
+                    updates.content = {
+                        mimeType: existingMaterial.content.mimeType,
+                        data: content
+                    };
+                }
+                
+                const updated = await materialsStore.updateMaterial(updates);
+                
+                return {
+                    success: true,
+                    message: `Material "${updated.name}" updated successfully.`,
+                    material: {
+                        id: updated.id,
+                        name: updated.name,
+                        type: updated.type,
+                        progress: updated.progress
+                    }
+                };
+            } catch (error) {
+                console.error("Tool Error (update_material):", error);
+                return { success: false, error: "Failed to update material." };
+            }
+        }
+    },
+    {
+        name: "get_subject_details",
+        description: "Retrieves detailed information about a specific subject including its metadata.",
+        parameters: {
+            type: TYPE.OBJECT,
+            properties: {
+                id: { type: TYPE.STRING, description: "The ID of the subject to retrieve." },
+            },
+            required: ["id"],
+        },
+        execute: async ({ id }: { id: string }) => {
+            try {
+                const subject = await subjectsStore.get(id);
+                if (!subject) return { error: "Subject not found." };
+                
+                // Get chapter count for this subject
+                const chapters = await chaptersStore.getChaptersBySubject(id);
+                
+                return {
+                    id: subject.id,
+                    name: subject.name,
+                    color: subject.color,
+                    icon: subject.icon,
+                    categories: subject.categories,
+                    chapterCount: chapters.length,
+                    sizeBytes: subject.size,
+                    createdAt: subject.createdAt,
+                    lastModified: subject.lastModified
+                };
+            } catch (error) {
+                console.error("Tool Error (get_subject_details):", error);
+                return { error: "Failed to retrieve subject details." };
+            }
+        }
+    },
+    {
+        name: "get_chapter_details",
+        description: "Retrieves detailed information about a specific chapter including its metadata.",
+        parameters: {
+            type: TYPE.OBJECT,
+            properties: {
+                id: { type: TYPE.STRING, description: "The ID of the chapter to retrieve." },
+            },
+            required: ["id"],
+        },
+        execute: async ({ id }: { id: string }) => {
+            try {
+                const chapter = await chaptersStore.get(id);
+                if (!chapter) return { error: "Chapter not found." };
+                
+                // Get material count for this chapter
+                const materials = await materialsStore.getMaterialsByChapter(id);
+                
+                return {
+                    id: chapter.id,
+                    name: chapter.name,
+                    number: chapter.number,
+                    subjectId: chapter.subjectId,
+                    materialCount: materials.length,
+                    sizeBytes: chapter.size,
+                    createdAt: chapter.createdAt,
+                    lastModified: chapter.lastModified
+                };
+            } catch (error) {
+                console.error("Tool Error (get_chapter_details):", error);
+                return { error: "Failed to retrieve chapter details." };
+            }
+        }
+    },
 
     // --- Miscellaneous Tools ---
     {

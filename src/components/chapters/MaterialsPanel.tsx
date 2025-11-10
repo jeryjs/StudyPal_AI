@@ -51,7 +51,7 @@ import { useCopilot } from '@hooks/useCopilot';
 
 // Keep MaterialsContainer, adjust padding/minHeight if needed
 const MaterialsContainer = styled(Paper)(({ theme }) => ({
-    borderRadius: theme.shape.borderRadius * 1.5,
+    borderRadius: typeof theme.shape.borderRadius === 'number' ? theme.shape.borderRadius * 1.5 : theme.shape.borderRadius,
     backgroundColor: alpha(theme.palette.background.paper, 0.6),
     height: '100%',
     minHeight: '360px',
@@ -72,7 +72,7 @@ const OverlayDropZone = styled(Box, {
     bottom: 0,
     backgroundColor: alpha(theme.palette.background.default, 0.85), // Semi-transparent background
     border: `3px dashed ${theme.palette.primary.main}`,
-    borderRadius: theme.shape.borderRadius * 1.5, // Match container
+    borderRadius: typeof theme.shape.borderRadius === 'number' ? theme.shape.borderRadius * 1.5 : theme.shape.borderRadius, // Match container
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',

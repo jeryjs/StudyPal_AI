@@ -1,3 +1,5 @@
+import ChatListSidebar from '@components/copilot/ChatListSidebar'; // Import the new sidebar
+import { useCopilot } from '@hooks/useCopilot';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import {
@@ -10,9 +12,8 @@ import {
     Typography,
     useTheme
 } from '@mui/material';
-import React, { useEffect, useRef } from 'react';
-import { useCopilot } from '@hooks/useCopilot';
 import { CopilotMessage } from '@type/copilot.types';
+import React, { useEffect, useRef } from 'react';
 
 const CopilotPage: React.FC = () => {
     const theme = useTheme();
@@ -99,96 +100,114 @@ const CopilotPage: React.FC = () => {
     const displayMessages = messages.filter(msg => msg.role === 'user' || msg.role === 'model');
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
-            <Box
-                ref={chatListRef}
-                onScroll={handleScroll}
-                sx={{
-                    flexGrow: 1,
-                    p: { xs: 1, md: 2 },
-                    display: 'flex',
-                    flexDirection: 'column',
-                    width: '100%',
-                    maxWidth: 900,
-                    mx: 'auto',
-                    pt: { xs: '70px', md: '20px' },
-                }}
-            >
+        // Use flex display for the overall page layout
+        <Box sx={{ display: 'flex', height: '100%', width: '100%' }}>
+            {/* Render the Chat List Sidebar */}
+            <ChatListSidebar />
 
-                {/* Welcome message if no messages */}
-                {displayMessages.length === 0 && !isLoading && (
-                    <Box sx={{ textAlign: 'center', my: 'auto', p: 3, color: 'text.secondary' }}>
-                        <SmartToyOutlinedIcon sx={{ fontSize: 60, mb: 2 }} />
-                        <Typography variant="h6">How can I help you today?</Typography>
-                        <Typography variant="body1">Ask me anything about your study materials!</Typography>
-                    </Box>
-                )}
+            {/* Main Chat Content Area */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, height: '100%', width: 'calc(100% - 280px)' /* Adjust width based on sidebar */ }}>
+                <Box
+                    ref={chatListRef}
+                    onScroll={handleScroll}
+                    sx={{
+                        flexGrow: 1,
+                        p: { xs: 1, md: 2 },
+                        display: 'flex',
+                        flexDirection: 'column',
+                        width: '100%',
+                        maxWidth: 900,
+                        mx: 'auto',
+                        pt: { xs: '70px', md: '20px' }, // Keep padding top for Chatbar overlap
+                        overflowY: 'auto', // Ensure chat area scrolls independently
+                        height: '100%', // Make sure it takes available height
+                    }}
+                >
 
-                {displayMessages.map((message) => (
-                    <Box
-                        key={message.id}
-                        sx={{
-                            display: 'flex',
-                            justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
-                            mb: 2,
-                            width: '100%',
-                        }}
-                    >
-                        {/* Render only if there are text parts to display */}
-                        {message.parts.length > 0 && message.parts.some(p => 'text' in p && p.text?.trim()) && (
-                            <Paper sx={{ ...glassChatBubble(message.role as 'user' | 'model'), flexDirection: (message.role as 'user' | 'model') === 'user' ? 'row-reverse' : 'row' }}>
-                                <Avatar sx={{
-                                    width: 32,
-                                    height: 32,
-                                    ml: message.role === 'user' ? 1.5 : 0,
-                                    mr: message.role === 'user' ? 0 : 1.5,
-                                    bgcolor: message.role === 'user' ? alpha(theme.palette.primary.main, 0.7) : theme.palette.text.secondary, // Stronger user avatar color
-                                    color: message.role === 'user' ? theme.palette.primary.contrastText : theme.palette.background.default,
-                                    fontSize: '1rem'
-                                }}>
-                                    {message.role === 'user' ? <AccountCircleOutlinedIcon fontSize="small" /> : <SmartToyOutlinedIcon fontSize="small" />}
-                                </Avatar>
-                                <Box sx={{ overflow: 'hidden' }}> {/* Prevent long text from breaking layout */}
-                                    <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                        {renderMessageContent(message.parts)}
-                                        {/* Display loading indicator within the bubble if message is loading */}
-                                        {message.isLoading && <CircularProgress size={16} sx={{ ml: 1, verticalAlign: 'middle' }} />}
-                                        {/* Display error within the bubble */}
-                                        {message.error && <Alert severity="error" sx={{ mt: 1, fontSize: '0.8rem', p: '2px 8px' }}>{message.error}</Alert>}
-                                    </Typography>
-                                    {/* Optionally display model used */}
-                                    {message.modelUsed && message.role === 'model' && (
-                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, textAlign: 'right' }}>
-                                            Model: {message.modelUsed.split('/').pop()} {/* Show short model name */}
+                    {/* Welcome message if no messages and no active chat */}
+                    {!activeChat && !isLoading && (
+                        <Box sx={{ textAlign: 'center', my: 'auto', p: 3, color: 'text.secondary' }}>
+                            <SmartToyOutlinedIcon sx={{ fontSize: 60, mb: 2 }} />
+                            <Typography variant="h6">Start a new chat</Typography>
+                            <Typography variant="body1">Click the '+' button or start typing below.</Typography>
+                        </Box>
+                    )}
+
+                    {/* Welcome message if active chat has no messages */}
+                    {activeChat && displayMessages.length === 0 && !isLoading && (
+                        <Box sx={{ textAlign: 'center', my: 'auto', p: 3, color: 'text.secondary' }}>
+                            <SmartToyOutlinedIcon sx={{ fontSize: 60, mb: 2 }} />
+                            <Typography variant="h6">How can I help you today?</Typography>
+                            <Typography variant="body1">Ask me anything about your study materials!</Typography>
+                        </Box>
+                    )}
+
+                    {activeChat && displayMessages.map((message) => (
+                        <Box
+                            key={message.id}
+                            sx={{
+                                display: 'flex',
+                                justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                                mb: 2,
+                                width: '100%',
+                            }}
+                        >
+                            {/* Render only if there are text parts to display */}
+                            {message.parts.length > 0 && message.parts.some(p => 'text' in p && p.text?.trim()) && (
+                                <Paper sx={{ ...glassChatBubble(message.role as 'user' | 'model'), flexDirection: (message.role as 'user' | 'model') === 'user' ? 'row-reverse' : 'row' }}>
+                                    <Avatar sx={{
+                                        width: 32,
+                                        height: 32,
+                                        ml: message.role === 'user' ? 1.5 : 0,
+                                        mr: message.role === 'user' ? 0 : 1.5,
+                                        bgcolor: message.role === 'user' ? alpha(theme.palette.primary.main, 0.7) : theme.palette.text.secondary, // Stronger user avatar color
+                                        color: message.role === 'user' ? theme.palette.primary.contrastText : theme.palette.background.default,
+                                        fontSize: '1rem'
+                                    }}>
+                                        {message.role === 'user' ? <AccountCircleOutlinedIcon fontSize="small" /> : <SmartToyOutlinedIcon fontSize="small" />}
+                                    </Avatar>
+                                    <Box sx={{ overflow: 'hidden' }}> {/* Prevent long text from breaking layout */}
+                                        <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                            {renderMessageContent(message.parts)}
+                                            {/* Display loading indicator within the bubble if message is loading */}
+                                            {activeChat.isProcessing && <CircularProgress size={16} sx={{ ml: 1, verticalAlign: 'middle' }} />}
+                                            {/* Display error within the bubble */}
+                                            {message.error && <Alert severity="error" sx={{ mt: 1, fontSize: '0.8rem', p: '2px 8px' }}>{message.error}</Alert>}
                                         </Typography>
-                                    )}
-                                </Box>
+                                        {/* Optionally display model used */}
+                                        {message.modelUsed && message.role === 'model' && (
+                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, textAlign: 'right' }}>
+                                                Model: {message.modelUsed.split('/').pop()} {/* Show short model name */}
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                </Paper>
+                            )}
+                            {/* Handle Function Call/Response Visualization (Optional/Future) */}
+                            {/* {message.role === 'tool' && ... } */}
+                            {/* {message.role === 'model' && message.parts.some(p => 'functionCall' in p) && ... } */}
+                        </Box>
+                    ))}
+
+                    {/* Show loading indicator after user message if waiting for first response chunk */}
+                    {isLoading && activeChat && displayMessages.length > 0 && displayMessages[displayMessages.length - 1].role === 'user' && (
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2, width: '100%' }}>
+                            <Paper sx={{ ...glassChatBubble('model'), flexDirection: 'row', alignItems: 'center', p: 1.5 }}>
+                                <Avatar sx={{ width: 32, height: 32, mr: 1.5, bgcolor: theme.palette.text.secondary, color: theme.palette.background.default, fontSize: '1rem' }}>
+                                    <SmartToyOutlinedIcon fontSize="small" />
+                                </Avatar>
+                                <CircularProgress size={20} sx={{ mr: 1 }} />
+                                <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
+                                    Thinking...
+                                </Typography>
                             </Paper>
-                        )}
-                        {/* Handle Function Call/Response Visualization (Optional/Future) */}
-                        {/* {message.role === 'tool' && ... } */}
-                        {/* {message.role === 'model' && message.parts.some(p => 'functionCall' in p) && ... } */}
-                    </Box>
-                ))}
+                        </Box>
+                    )}
 
-                {/* Show loading indicator after user message if waiting for first response chunk */}
-                {isLoading && displayMessages.length > 0 && displayMessages[displayMessages.length - 1].role === 'user' && (
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2, width: '100%' }}>
-                        <Paper sx={{ ...glassChatBubble('model'), flexDirection: 'row', alignItems: 'center', p: 1.5 }}>
-                            <Avatar sx={{ width: 32, height: 32, mr: 1.5, bgcolor: theme.palette.text.secondary, color: theme.palette.background.default, fontSize: '1rem' }}>
-                                <SmartToyOutlinedIcon fontSize="small" />
-                            </Avatar>
-                            <CircularProgress size={20} sx={{ mr: 1 }} />
-                            <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
-                                Thinking...
-                            </Typography>
-                        </Paper>
-                    </Box>
-                )}
-
-                {error && (
-                    <Alert severity="error" sx={{ m: 1, flexShrink: 0 }}>{error}</Alert>
-                )}
+                    {error && (
+                        <Alert severity="error" sx={{ m: 1, flexShrink: 0 }}>{error}</Alert>
+                    )}
+                </Box>
             </Box>
         </Box>
     );

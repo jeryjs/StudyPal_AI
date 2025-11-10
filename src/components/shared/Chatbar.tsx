@@ -1,12 +1,14 @@
 import { useCopilot } from '@hooks/useCopilot';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AddIcon from '@mui/icons-material/Add';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SendIcon from '@mui/icons-material/Send';
 import ChatIcon from '@mui/icons-material/SmartToyOutlined';
 import { Box, IconButton, Paper, styled, SxProps, TextField, Theme, Tooltip, useTheme } from '@mui/material';
 import CopilotPage from '@pages/CopilotPage';
+import { ChatAttachmentWithContent } from '@type/copilot.types';
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
+import ChatbarActionBar from './ChatbarActionBar';
 
 // --- Styled Components ---
 
@@ -113,6 +115,7 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
 
     const inputRef = useRef<HTMLInputElement>(null);
     const [inputValue, setInputValue] = useState('');
+    const [attachments, setAttachments] = useState<ChatAttachmentWithContent[]>([]);
     const isExpanded = location.pathname === '/copilot';
     const currentChatId = searchParams.get('id'); // Get chat ID from URL
 
@@ -172,19 +175,29 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
             try {
                 // If no active chat is set (e.g., navigated to /copilot directly),
                 // sendMessage in context will handle creating a new one.
-                await sendMessage(trimmedInput);
+                await sendMessage(trimmedInput, { attachments });
                 setInputValue(''); // Clear input after successful send
+                // Attachments are not cleared after sending, they persist for the chat session
             } catch (error) {
                 console.error("Chatbar: Failed to send message:", error);
                 // Error state is managed globally in CopilotContext
             }
         }
     };
-    
+
     const handleStartNewChat = () => {
         startNewChat();
         setInputValue('');
+        setAttachments([]); // Clear attachments when starting a new chat
         inputRef.current?.focus();
+    };
+
+    const handleAddAttachment = (attachment: ChatAttachmentWithContent) => {
+        setAttachments(prev => [...prev, attachment]);
+    };
+
+    const handleRemoveAttachment = (attachmentId: string) => {
+        setAttachments(prev => prev.filter(att => att.id !== attachmentId));
     };
 
     const hasInput = !!inputValue.trim();
@@ -196,8 +209,16 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
             </MorphCopilotPage>
 
             <MorphInputBar expanded={isExpanded} elevation={0}>
+                {isExpanded && (
+                    <ChatbarActionBar
+                        isExpanded={isExpanded}
+                        activeAttachments={attachments}
+                        onAttachMaterial={handleAddAttachment}
+                        onRemoveAttachment={handleRemoveAttachment}
+                    />
+                )}
                 <form onSubmit={handleSend} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: theme.spacing(1) }}>
-                    
+
                     {/* Button shown only when collapsed */}
                     <ChatbarActionButton show={!isExpanded} title="Open Chat (Ctrl+C)" onClick={handleFocus}>
                         <ChatIcon />
@@ -244,6 +265,7 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
                     </ChatbarActionButton>
                 </form>
             </MorphInputBar>
+            {/* Action Bar is now positioned above the chatbar within MorphCopilotPage */}
         </MorphContainer>
     );
 };

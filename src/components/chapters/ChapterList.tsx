@@ -27,7 +27,7 @@ const GlassmorphicPaper = styled(Paper)(({ theme }) => ({
     backdropFilter: 'blur(12px) saturate(180%)',
     WebkitBackdropFilter: 'blur(12px) saturate(180%)',
     border: `1px solid ${alpha(theme.palette.divider, 0.15)}`,
-    borderRadius: theme.shape.borderRadius * 2,
+    borderRadius: typeof theme.shape.borderRadius === 'number' ? theme.shape.borderRadius * 2 : theme.shape.borderRadius,
     // padding: theme.spacing(3),
     // marginBottom: theme.spacing(3), // Removed margin bottom as it's handled by Grid spacing
     overflow: 'hidden',

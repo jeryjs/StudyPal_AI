@@ -1,7 +1,20 @@
+/**
+ * Copilot Page - Main chat interface for the AI assistant
+ * 
+ * Features:
+ * - Displays chat messages with markdown rendering and syntax highlighting
+ * - Shows tool execution progress and results
+ * - Includes chat history sidebar with export functionality
+ * - Auto-scroll with manual scroll override
+ * - Visual distinction between user messages, AI responses, and tool executions
+ */
+
 import ChatListSidebar from '@components/copilot/ChatListSidebar'; // Import the new sidebar
 import { useCopilot } from '@hooks/useCopilot';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
+import BuildIcon from '@mui/icons-material/Build';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import {
     Alert,
     alpha,
@@ -10,10 +23,15 @@ import {
     CircularProgress,
     Paper,
     Typography,
-    useTheme
+    useTheme,
+    Chip
 } from '@mui/material';
 import { CopilotMessage } from '@type/copilot.types';
 import React, { useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github-dark.css'; // Import a code highlight style
 
 const CopilotPage: React.FC = () => {
     const theme = useTheme();
@@ -28,12 +46,104 @@ const CopilotPage: React.FC = () => {
 
     const messages = activeChat?.messages || [];
 
-    // Function to render message parts (handling text safely)
-    const renderMessageContent = (parts: CopilotMessage['parts']) => {
-        // Concatenate text parts, ignoring others for now
-        return parts
-            .map(part => ('text' in part ? part.text : '')) // Safely access text
+    // Function to render message parts (handling text, function calls, and responses)
+    const renderMessageContent = (message: CopilotMessage) => {
+        const parts = message.parts;
+        
+        // Check if this is a function call message
+        const hasFunctionCall = parts.some(p => 'functionCall' in p);
+        if (hasFunctionCall && message.role === 'model') {
+            return (
+                <Box>
+                    {parts.map((part, idx) => {
+                        if ('functionCall' in part && part.functionCall) {
+                            return (
+                                <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                    <BuildIcon fontSize="small" color="primary" />
+                                    <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                                        Using tool: <strong>{part.functionCall.name}</strong>
+                                    </Typography>
+                                </Box>
+                            );
+                        }
+                        return null;
+                    })}
+                </Box>
+            );
+        }
+        
+        // Check if this is a function response message (tool role)
+        if (message.role === 'tool') {
+            return (
+                <Box>
+                    {parts.map((part, idx) => {
+                        if ('functionResponse' in part && part.functionResponse) {
+                            const response = part.functionResponse.response;
+                            const content = response && typeof response === 'object' && 'content' in response 
+                                ? JSON.stringify(response.content, null, 2)
+                                : JSON.stringify(response, null, 2);
+                            
+                            return (
+                                <Box key={idx} sx={{ mb: 1 }}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                                        <CheckCircleIcon fontSize="small" color="success" />
+                                        <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
+                                            Tool result: <strong>{part.functionResponse.name}</strong>
+                                        </Typography>
+                                    </Box>
+                                    <Paper sx={{ p: 1, bgcolor: alpha(theme.palette.background.default, 0.5), maxHeight: 200, overflow: 'auto' }}>
+                                        <pre style={{ margin: 0, fontSize: '0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                            {content}
+                                        </pre>
+                                    </Paper>
+                                </Box>
+                            );
+                        }
+                        return null;
+                    })}
+                </Box>
+            );
+        }
+        
+        // Regular text message - use markdown rendering
+        const textContent = parts
+            .map(part => ('text' in part ? part.text : ''))
             .join('');
+        
+        return (
+            <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeHighlight]}
+                components={{
+                    // Customize markdown rendering for better integration with theme
+                    code({ node, inline, className, children, ...props }: any) {
+                        return inline ? (
+                            <code style={{ 
+                                backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '0.9em'
+                            }} {...props}>
+                                {children}
+                            </code>
+                        ) : (
+                            <code className={className} {...props}>
+                                {children}
+                            </code>
+                        );
+                    },
+                    a({ node, children, ...props }: any) {
+                        return (
+                            <a {...props} style={{ color: theme.palette.primary.main }} target="_blank" rel="noopener noreferrer">
+                                {children}
+                            </a>
+                        );
+                    }
+                }}
+            >
+                {textContent}
+            </ReactMarkdown>
+        );
     };
 
     // Scroll to bottom logic (refined)
@@ -96,8 +206,8 @@ const CopilotPage: React.FC = () => {
     });
 
     // Filter messages to display only user and model roles
-    // Tool messages are not typically displayed directly in the main chat flow
-    const displayMessages = messages.filter(msg => msg.role === 'user' || msg.role === 'model');
+    // Tool messages are not typically displayed directly in the main chat flow, but we show them for debugging
+    const displayMessages = messages;
 
     return (
         // Use flex display for the overall page layout
@@ -142,52 +252,79 @@ const CopilotPage: React.FC = () => {
                         </Box>
                     )}
 
-                    {activeChat && displayMessages.map((message) => (
-                        <Box
-                            key={message.id}
-                            sx={{
-                                display: 'flex',
-                                justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
-                                mb: 2,
-                                width: '100%',
-                            }}
-                        >
-                            {/* Render only if there are text parts to display */}
-                            {message.parts.length > 0 && message.parts.some(p => 'text' in p && p.text?.trim()) && (
-                                <Paper sx={{ ...glassChatBubble(message.role as 'user' | 'model'), flexDirection: (message.role as 'user' | 'model') === 'user' ? 'row-reverse' : 'row' }}>
+                    {activeChat && displayMessages.map((message) => {
+                        // Determine if this message should be shown
+                        const shouldShow = message.role === 'user' || 
+                                          message.role === 'tool' ||
+                                          (message.role === 'model' && message.parts.some(p => 'text' in p && p.text?.trim())) ||
+                                          (message.role === 'model' && message.parts.some(p => 'functionCall' in p));
+                        
+                        if (!shouldShow) return null;
+                        
+                        const isUser = message.role === 'user';
+                        const isTool = message.role === 'tool';
+                        
+                        return (
+                            <Box
+                                key={message.id}
+                                sx={{
+                                    display: 'flex',
+                                    justifyContent: isUser ? 'flex-end' : 'flex-start',
+                                    mb: 2,
+                                    width: '100%',
+                                }}
+                            >
+                                <Paper sx={{ 
+                                    ...glassChatBubble(isUser ? 'user' : 'model'), 
+                                    flexDirection: isUser ? 'row-reverse' : 'row',
+                                    opacity: isTool ? 0.85 : 1 // Slightly fade tool messages
+                                }}>
                                     <Avatar sx={{
                                         width: 32,
                                         height: 32,
-                                        ml: message.role === 'user' ? 1.5 : 0,
-                                        mr: message.role === 'user' ? 0 : 1.5,
-                                        bgcolor: message.role === 'user' ? alpha(theme.palette.primary.main, 0.7) : theme.palette.text.secondary, // Stronger user avatar color
-                                        color: message.role === 'user' ? theme.palette.primary.contrastText : theme.palette.background.default,
+                                        ml: isUser ? 1.5 : 0,
+                                        mr: isUser ? 0 : 1.5,
+                                        bgcolor: isUser 
+                                            ? alpha(theme.palette.primary.main, 0.7) 
+                                            : isTool
+                                                ? alpha(theme.palette.success.main, 0.7)
+                                                : theme.palette.text.secondary,
+                                        color: isUser ? theme.palette.primary.contrastText : theme.palette.background.default,
                                         fontSize: '1rem'
                                     }}>
-                                        {message.role === 'user' ? <AccountCircleOutlinedIcon fontSize="small" /> : <SmartToyOutlinedIcon fontSize="small" />}
+                                        {isUser 
+                                            ? <AccountCircleOutlinedIcon fontSize="small" /> 
+                                            : isTool
+                                                ? <BuildIcon fontSize="small" />
+                                                : <SmartToyOutlinedIcon fontSize="small" />}
                                     </Avatar>
-                                    <Box sx={{ overflow: 'hidden' }}> {/* Prevent long text from breaking layout */}
-                                        <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                            {renderMessageContent(message.parts)}
-                                            {/* Display loading indicator within the bubble if message is loading */}
+                                    <Box sx={{ overflow: 'hidden', flex: 1 }}>
+                                        <Box sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                            {renderMessageContent(message)}
+                                            {/* Display loading indicator within the bubble if chat is processing */}
                                             {activeChat.isProcessing && <CircularProgress size={16} sx={{ ml: 1, verticalAlign: 'middle' }} />}
                                             {/* Display error within the bubble */}
                                             {message.error && <Alert severity="error" sx={{ mt: 1, fontSize: '0.8rem', p: '2px 8px' }}>{message.error}</Alert>}
-                                        </Typography>
-                                        {/* Optionally display model used */}
+                                        </Box>
+                                        {/* Display model used */}
                                         {message.modelUsed && message.role === 'model' && (
-                                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, textAlign: 'right' }}>
-                                                Model: {message.modelUsed.split('/').pop()} {/* Show short model name */}
-                                            </Typography>
+                                            <Chip 
+                                                label={message.modelUsed.split('/').pop()} 
+                                                size="small"
+                                                sx={{ 
+                                                    mt: 0.5, 
+                                                    height: 20, 
+                                                    fontSize: '0.65rem',
+                                                    bgcolor: alpha(theme.palette.info.main, 0.1),
+                                                    color: theme.palette.text.secondary
+                                                }}
+                                            />
                                         )}
                                     </Box>
                                 </Paper>
-                            )}
-                            {/* Handle Function Call/Response Visualization (Optional/Future) */}
-                            {/* {message.role === 'tool' && ... } */}
-                            {/* {message.role === 'model' && message.parts.some(p => 'functionCall' in p) && ... } */}
-                        </Box>
-                    ))}
+                            </Box>
+                        );
+                    })}
 
                     {/* Show loading indicator after user message if waiting for first response chunk */}
                     {isLoading && activeChat && displayMessages.length > 0 && displayMessages[displayMessages.length - 1].role === 'user' && (

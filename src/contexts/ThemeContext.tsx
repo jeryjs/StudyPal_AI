@@ -65,7 +65,7 @@ const baseThemeOptions: ThemeOptions = {
                     backgroundColor: alpha(theme.palette.background.paper, 0.7),
                     backdropFilter: 'blur(10px)',
                     WebkitBackdropFilter: 'blur(10px)', // For Safari
-                    borderRadius: theme.shape.borderRadius * 12.5,
+                    borderRadius: typeof theme.shape.borderRadius === 'number' ? theme.shape.borderRadius * 12.5 : theme.shape.borderRadius,
                     border: `1px solid ${alpha(theme.palette.divider, 0.2)}`, // Subtle border
                     boxShadow: `0px 4px 12px ${alpha(theme.palette.divider, 0.1)}`, // Subtle shadow
                 }),
@@ -240,7 +240,7 @@ const baseThemeOptions: ThemeOptions = {
                     backgroundColor: alpha(theme.palette.background.paper, 0.8),
                     backdropFilter: 'blur(10px)',
                     WebkitBackdropFilter: 'blur(10px)',
-                    borderRadius: theme.shape.borderRadius * 2,
+                    borderRadius: typeof theme.shape.borderRadius === 'number' ? theme.shape.borderRadius * 2 : theme.shape.borderRadius,
                     margin: theme.spacing(2),
                     border: `1px solid ${alpha(theme.palette.divider, 0.2)}`,
                     boxShadow: `0px 4px 12px ${alpha(theme.palette.divider, 0.1)}`,

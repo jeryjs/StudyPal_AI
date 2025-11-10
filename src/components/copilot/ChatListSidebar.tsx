@@ -1,5 +1,5 @@
-// filepath: y:\All-Projects\Study-Pal\src\components\copilot\ChatListSidebar.tsx
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import {
     Box,
     CircularProgress,
@@ -24,7 +24,7 @@ interface ChatListSidebarProps {
 }
 
 const ChatListSidebar: React.FC<ChatListSidebarProps> = () => {
-    const { activeChat, listChats, setActiveChatId, deleteChat, isLoading: contextLoading } = useCopilot();
+    const { activeChat, listChats, setActiveChatId, deleteChat, exportChat, isLoading: contextLoading } = useCopilot();
     const [chats, setChats] = useState<Chat[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -69,6 +69,15 @@ const ChatListSidebar: React.FC<ChatListSidebarProps> = () => {
                 setError("Failed to delete chat.");
                 // Optionally show error to user
             }
+        }
+    };
+
+    const handleExport = async (e: React.MouseEvent, chatId: string) => {
+        e.stopPropagation();
+        try {
+            await exportChat(chatId);
+        } catch (err) {
+            console.error("Failed to export chat:", err);
         }
     };
 
@@ -121,24 +130,37 @@ const ChatListSidebar: React.FC<ChatListSidebarProps> = () => {
                                 key={chat.id}
                                 disablePadding
                                 secondaryAction={
-                                    <Tooltip title="Delete Chat">
-                                        <IconButton
-                                            edge="end"
-                                            aria-label="delete"
-                                            size="small"
-                                            onClick={(e) => handleDelete(e, chat.id)}
-                                            sx={{ mr: 0.5 }} // Adjust margin
-                                        >
-                                            <DeleteOutlineIcon fontSize="small" />
-                                        </IconButton>
-                                    </Tooltip>
+                                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                        <Tooltip title="Export Chat">
+                                            <IconButton
+                                                edge="end"
+                                                aria-label="export"
+                                                size="small"
+                                                onClick={(e) => handleExport(e, chat.id)}
+                                                sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}
+                                            >
+                                                <FileDownloadIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                        <Tooltip title="Delete Chat">
+                                            <IconButton
+                                                edge="end"
+                                                aria-label="delete"
+                                                size="small"
+                                                onClick={(e) => handleDelete(e, chat.id)}
+                                                sx={{ mr: 0.5, opacity: 0.6, '&:hover': { opacity: 1, color: 'error.main' } }}
+                                            >
+                                                <DeleteOutlineIcon fontSize="small" />
+                                            </IconButton>
+                                        </Tooltip>
+                                    </Box>
                                 }
                             >
                                 <ListItemButton
                                     onClick={() => handleSelectChat(chat.id)}
                                     selected={activeChat?.id === chat.id}
                                     sx={{
-                                        pr: 5, // Add padding to prevent text overlap with button
+                                        pr: 10, // Add padding to prevent text overlap with buttons
                                         '&.Mui-selected': {
                                             // Ensure selected style doesn't hide button
                                             backgroundColor: (theme) => theme.palette.action.selected,

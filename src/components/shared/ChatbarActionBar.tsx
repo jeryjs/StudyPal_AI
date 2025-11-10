@@ -1,5 +1,4 @@
 import { useMaterials } from '@hooks/useMaterials';
-import { useSubjects } from '@hooks/useSubjects';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import CloseIcon from '@mui/icons-material/Close';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -8,7 +7,6 @@ import LinkIcon from '@mui/icons-material/Link';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import {
     Box,
-    Button,
     CircularProgress,
     Divider,
     IconButton,
@@ -47,7 +45,6 @@ const ChatbarActionBar: React.FC<ChatbarActionBarProps> = ({
     const [loadingAttachments, setLoadingAttachments] = useState<AttachmentLoadingState>({});
 
     const { materials, getMaterialContent } = useMaterials();
-    const { subjects } = useSubjects();
 
     const open = Boolean(anchorEl);
     const popperId = open ? 'attachment-popper' : undefined;

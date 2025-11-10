@@ -22,6 +22,7 @@ interface CopilotContextType {
     setCurrentModel: (model: CopilotModel) => void;
     listChats: () => Promise<Chat[]>;
     deleteChat: (chatId: string) => Promise<void>;
+    exportChat: (chatId?: string) => Promise<void>;
 }
 
 export const CopilotContext = createContext<CopilotContextType | undefined>(undefined);
@@ -142,6 +143,59 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         }
     }, [activeChatId, setActiveChatId]);
 
+    // Function to export a chat as JSON
+    const exportChat = useCallback(async (chatId?: string): Promise<void> => {
+        const targetChatId = chatId || activeChatId;
+        if (!targetChatId) {
+            console.error("No chat ID provided for export");
+            return;
+        }
+        
+        try {
+            const chat = await copilotStore.getChatById(targetChatId);
+            if (!chat) {
+                throw new Error(`Chat with ID ${targetChatId} not found`);
+            }
+            
+            // Create a formatted export object
+            const exportData = {
+                title: chat.title,
+                exportedAt: new Date().toISOString(),
+                createdOn: new Date(chat.createdOn).toISOString(),
+                lastModified: new Date(chat.lastModified).toISOString(),
+                messageCount: chat.messages.length,
+                messages: chat.messages.map(msg => ({
+                    role: msg.role,
+                    timestamp: new Date(msg.timestamp).toISOString(),
+                    content: msg.parts.map(part => {
+                        if ('text' in part) return { type: 'text', text: part.text };
+                        if ('functionCall' in part) return { type: 'functionCall', name: part.functionCall?.name };
+                        if ('functionResponse' in part) return { type: 'functionResponse', name: part.functionResponse?.name };
+                        return { type: 'unknown' };
+                    }),
+                    modelUsed: msg.modelUsed,
+                })),
+                attachments: chat.attachments
+            };
+            
+            // Create and download the file
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `studypal-chat-${chat.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            console.log(`Chat "${chat.title}" exported successfully`);
+        } catch (err) {
+            console.error("Failed to export chat:", err);
+            setError("Failed to export chat.");
+        }
+    }, [activeChatId]);
+
 
     // --- Database Operations (Now operate on the active chat) ---
 
@@ -251,15 +305,32 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
             await addMessage(modelResponsePlaceholder);
 
             // Build system instruction with context awareness (including attachments)
-            const attachmentContext = currentChat?.attachments.map(a => `- ${a.name} (ID: ${a.id}, Type: ${a.type})`).join('\\n') || 'None';
+            const attachmentContext = currentChat?.attachments.map(a => `- ${a.name} (ID: ${a.id}, Type: ${a.type})`).join('\n') || 'None';
+            
+            // Format page context properly
+            let pageContextStr = 'None';
+            if (pageContext) {
+                pageContextStr = `Page: ${pageContext.page}`;
+                if (pageContext.description) {
+                    pageContextStr += ` - ${pageContext.description}`;
+                }
+                if (pageContext.activeItem) {
+                    pageContextStr += ` | Active ${pageContext.activeItem.type}: ${pageContext.activeItem.id}`;
+                }
+            }
+            
             const systemInstruction = `You are Study Pal's AI Copilot. Be helpful and concise. Prioritise using the user's materials over your own knowledge. Unless explicitly asked, do not provide information about your own knowledge or internal workings like IDs.
-                \n
-                Available attached materials: [${attachmentContext}]
-                Current Page context: ["${pageContext}"] (activeItemId, if available, is the ID of the currently open item (like material, subject or chapter) on the page).
-                \n
-                You are smart and highly personalised to the user, so you often infer user's intentions and avoid asking confirmations again and again. You are capable of utilising your own personal ideas (this can be random each time, but user doesnt need to know that its random).
-                Smartly infer the tools usage. Theres always a workaround with the tools.. so even if it looks like a required tool is not available, think out of the box for a workaround. For example, you can actually set whatever custom theme the user wants (or edit current themes) using the set_settings tool on a custom theme using the get_available_themes tool to get the syntax for defining a new theme.
-                If you are unable to answer a question, suggest the user provide their materials or ask for help. If you have access to the user's materials, use them to answer questions. Utilise the page context and any attachments provided for the current chat.`;
+
+IMPORTANT: You have access to the current page context. ALWAYS use this information when the user asks about their current location or what page they're on.
+
+Available attached materials: 
+${attachmentContext}
+
+Current Page Context: ${pageContextStr}
+
+You are smart and highly personalised to the user, so you often infer user's intentions and avoid asking confirmations again and again. You are capable of utilising your own personal ideas (this can be random each time, but user doesnt need to know that its random).
+Smartly infer the tools usage. Theres always a workaround with the tools.. so even if it looks like a required tool is not available, think out of the box for a workaround. For example, you can actually set whatever custom theme the user wants (or edit current themes) using the set_settings tool on a custom theme using the get_available_themes tool to get the syntax for defining a new theme.
+If you are unable to answer a question, suggest the user provide their materials or ask for help. If you have access to the user's materials, use them to answer questions. Utilise the page context and any attachments provided for the current chat.`;
 
             // Create API history from the current chat's messages
             // Ensure the user message we just added is included for the API call
@@ -440,6 +511,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         setCurrentModel,
         listChats,
         deleteChat,
+        exportChat,
     }), [
         activeChat,
         suggestions,
@@ -453,6 +525,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         setCurrentModel,
         listChats,
         deleteChat,
+        exportChat,
     ]);
 
     return (

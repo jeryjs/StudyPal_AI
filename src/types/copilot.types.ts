@@ -25,10 +25,8 @@ export interface CopilotMessage {
     // Use Gemini's generic Part structure for flexibility
     parts: Part[];
     timestamp: number; // Unix timestamp (ms)
-    isLoading?: boolean; // Optional flag for streaming state
     error?: string; // Optional error message
     modelUsed?: CopilotModel; // Track which model generated the response
-    // reasoningMetadata?: unknown; // Placeholder removed for cleanup
 }
 
 // Represents a material attached to a chat

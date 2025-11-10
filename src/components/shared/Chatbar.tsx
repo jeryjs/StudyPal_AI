@@ -184,7 +184,7 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
             }
         }
     };
-    
+
     const handleStartNewChat = () => {
         startNewChat();
         setInputValue('');
@@ -218,7 +218,7 @@ const Chatbar: React.FC<ChatbarProps> = ({ navbarWidth = 0 }) => {
                     />
                 )}
                 <form onSubmit={handleSend} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: theme.spacing(1) }}>
-                    
+
                     {/* Button shown only when collapsed */}
                     <ChatbarActionButton show={!isExpanded} title="Open Chat (Ctrl+C)" onClick={handleFocus}>
                         <ChatIcon />

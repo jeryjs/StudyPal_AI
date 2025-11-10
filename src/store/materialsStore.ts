@@ -1,4 +1,5 @@
 import { DBStore } from '@db';
+import useCloudStorage from '@hooks/useCloudStorage';
 import { Material, MaterialType, StoreNames, SyncStatus } from '@type/db.types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -88,6 +89,29 @@ class MaterialsStore extends DBStore<Material> {
 
     await this.put(updatedMaterial, undefined, dispatchEvent); // Use put(value) instead of set(key, value)
     return updatedMaterial;
+  }
+
+  async getMaterialContent(id: string): Promise<Material['content']> {
+    const material = await this.get(id);
+    if (!material) throw new Error(`Material not found: ${id}`);
+
+    // Check if content is already cached or is not synced to cloud
+    if (material.content?.data || material.type === MaterialType.LINK || !material.driveId) {
+      return material.content;
+    }
+
+    // Fetch content from cloud storage if not cached
+    if (material.content && !material.content.data) {
+      // Retrieve the content from cloud storage
+      const blob = await useCloudStorage().downloadFile(material.driveId);
+      const content = { mimeType: blob.type, data: blob }
+
+      // update the material in db with the new content
+      await this.cacheMaterialContent(id, content);
+      return content;
+    }
+
+    return material.content;
   }
 
   /**

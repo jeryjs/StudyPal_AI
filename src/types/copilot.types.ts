@@ -27,6 +27,7 @@ export interface CopilotMessage {
     timestamp: number; // Unix timestamp (ms)
     error?: string; // Optional error message
     modelUsed?: CopilotModel; // Track which model generated the response
+    isLoading?: boolean; // Indicates if the message is still being streamed/processed
 }
 
 // Represents a material attached to a chat

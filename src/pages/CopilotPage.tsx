@@ -2,27 +2,34 @@ import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import BuildIcon from '@mui/icons-material/Build';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import HistoryIcon from '@mui/icons-material/History';
 import {
     Alert,
     alpha,
     Avatar,
     Box,
     CircularProgress,
+    Drawer,
+    IconButton,
     Paper,
+    Tooltip,
     Typography,
     useTheme,
-    Chip
+    Chip,
+    useMediaQuery
 } from '@mui/material';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useCopilot } from '@hooks/useCopilot';
 import { CopilotMessage } from '@type/copilot.types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github-dark.css'; // Import a code highlight style
+import ChatHistorySidebar from '@components/copilot/ChatHistorySidebar';
 
 const CopilotPage: React.FC = () => {
     const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const {
         activeChat,
         isLoading,
@@ -31,6 +38,7 @@ const CopilotPage: React.FC = () => {
 
     const chatListRef = useRef<HTMLDivElement>(null);
     const scrollLockRef = useRef(true);
+    const [historyOpen, setHistoryOpen] = useState(!isMobile); // Open by default on desktop
 
     const messages = activeChat?.messages || [];
 
@@ -197,7 +205,57 @@ const CopilotPage: React.FC = () => {
     const displayMessages = messages;
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'row', height: '100%', width: '100%', position: 'relative' }}>
+            {/* History Toggle Button (Mobile) */}
+            {isMobile && (
+                <Tooltip title="Chat History" placement="left">
+                    <IconButton
+                        onClick={() => setHistoryOpen(true)}
+                        sx={{
+                            position: 'absolute',
+                            top: 16,
+                            right: 16,
+                            zIndex: 10,
+                            bgcolor: alpha(theme.palette.background.paper, 0.9),
+                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
+                        }}
+                    >
+                        <HistoryIcon />
+                    </IconButton>
+                </Tooltip>
+            )}
+
+            {/* Chat History Sidebar */}
+            {!isMobile ? (
+                <Paper
+                    sx={{
+                        width: 280,
+                        height: '100%',
+                        borderRight: 1,
+                        borderColor: 'divider',
+                        display: historyOpen ? 'block' : 'none'
+                    }}
+                >
+                    <ChatHistorySidebar />
+                </Paper>
+            ) : (
+                <Drawer
+                    anchor="right"
+                    open={historyOpen}
+                    onClose={() => setHistoryOpen(false)}
+                    sx={{
+                        '& .MuiDrawer-paper': {
+                            width: '80%',
+                            maxWidth: 320
+                        }
+                    }}
+                >
+                    <ChatHistorySidebar onClose={() => setHistoryOpen(false)} />
+                </Drawer>
+            )}
+
+            {/* Main Chat Area */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', flex: 1 }}>
             <Box
                 ref={chatListRef}
                 onScroll={handleScroll}
@@ -315,6 +373,7 @@ const CopilotPage: React.FC = () => {
                     <Alert severity="error" sx={{ m: 1, flexShrink: 0 }}>{error}</Alert>
                 )}
             </Box>
+        </Box>
         </Box>
     );
 };

@@ -22,6 +22,7 @@ interface CopilotContextType {
     setCurrentModel: (model: CopilotModel) => void;
     listChats: () => Promise<Chat[]>;
     deleteChat: (chatId: string) => Promise<void>;
+    exportChat: (chatId?: string) => Promise<void>;
 }
 
 export const CopilotContext = createContext<CopilotContextType | undefined>(undefined);
@@ -141,6 +142,59 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
             setIsLoading(false);
         }
     }, [activeChatId, setActiveChatId]);
+
+    // Function to export a chat as JSON
+    const exportChat = useCallback(async (chatId?: string): Promise<void> => {
+        const targetChatId = chatId || activeChatId;
+        if (!targetChatId) {
+            console.error("No chat ID provided for export");
+            return;
+        }
+        
+        try {
+            const chat = await copilotStore.getChatById(targetChatId);
+            if (!chat) {
+                throw new Error(`Chat with ID ${targetChatId} not found`);
+            }
+            
+            // Create a formatted export object
+            const exportData = {
+                title: chat.title,
+                exportedAt: new Date().toISOString(),
+                createdOn: new Date(chat.createdOn).toISOString(),
+                lastModified: new Date(chat.lastModified).toISOString(),
+                messageCount: chat.messages.length,
+                messages: chat.messages.map(msg => ({
+                    role: msg.role,
+                    timestamp: new Date(msg.timestamp).toISOString(),
+                    content: msg.parts.map(part => {
+                        if ('text' in part) return { type: 'text', text: part.text };
+                        if ('functionCall' in part) return { type: 'functionCall', name: part.functionCall?.name };
+                        if ('functionResponse' in part) return { type: 'functionResponse', name: part.functionResponse?.name };
+                        return { type: 'unknown' };
+                    }),
+                    modelUsed: msg.modelUsed,
+                })),
+                attachments: chat.attachments
+            };
+            
+            // Create and download the file
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `studypal-chat-${chat.title.replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            console.log(`Chat "${chat.title}" exported successfully`);
+        } catch (err) {
+            console.error("Failed to export chat:", err);
+            setError("Failed to export chat.");
+        }
+    }, [activeChatId]);
 
 
     // --- Database Operations (Now operate on the active chat) ---
@@ -440,6 +494,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         setCurrentModel,
         listChats,
         deleteChat,
+        exportChat,
     }), [
         activeChat,
         suggestions,
@@ -453,6 +508,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
         setCurrentModel,
         listChats,
         deleteChat,
+        exportChat,
     ]);
 
     return (

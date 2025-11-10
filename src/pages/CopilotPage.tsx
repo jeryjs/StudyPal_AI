@@ -1,3 +1,15 @@
+/**
+ * Copilot Page - Main chat interface for the AI assistant
+ * 
+ * Features:
+ * - Displays chat messages with markdown rendering and syntax highlighting
+ * - Shows tool execution progress and results
+ * - Includes chat history sidebar with export functionality
+ * - Mobile-responsive with drawer for history on small screens
+ * - Auto-scroll with manual scroll override
+ * - Visual distinction between user messages, AI responses, and tool executions
+ */
+
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import BuildIcon from '@mui/icons-material/Build';

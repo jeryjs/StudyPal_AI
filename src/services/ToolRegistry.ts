@@ -1,3 +1,20 @@
+/**
+ * Tool Registry - Central registry for all AI Copilot tools
+ * 
+ * This module defines all available tools that the Gemini AI can use to interact
+ * with the Study Pal application. Tools enable the AI to:
+ * - Retrieve and manipulate study materials
+ * - Manage application settings
+ * - Search for content
+ * - Perform web searches and fetch external URLs
+ * 
+ * Each tool includes:
+ * - name: Unique identifier for the tool
+ * - description: What the tool does (used by AI to decide when to call it)
+ * - parameters: JSON schema defining the expected parameters
+ * - execute: Async function that performs the actual operation
+ */
+
 import { availableThemes } from "@contexts/ThemeContext";
 import { FunctionCall, SchemaType as TYPE } from "@google/generative-ai";
 import { chaptersStore } from "@store/chaptersStore";

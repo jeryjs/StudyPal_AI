@@ -1,3 +1,14 @@
+/**
+ * Chat History Sidebar - Displays and manages chat sessions
+ * 
+ * Features:
+ * - Lists all chat sessions sorted by last modified date
+ * - Shows message count and time since last activity
+ * - Supports chat navigation, deletion, and export
+ * - Export creates JSON file with full chat history
+ * - Responsive design with mobile drawer support
+ */
+
 import DeleteIcon from '@mui/icons-material/Delete';
 import ChatIcon from '@mui/icons-material/ChatBubbleOutline';
 import AddIcon from '@mui/icons-material/Add';

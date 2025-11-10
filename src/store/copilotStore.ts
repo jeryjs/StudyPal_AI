@@ -1,120 +1,111 @@
-import { getDb, DBStore } from "../db";
-import { StoreNames } from "../types/db.types";
-import { CopilotMessage } from "../types/copilot.types";
+import { DBStore } from "@db";
+import { Chat, CopilotMessage } from "@type/copilot.types";
+import { StoreNames } from "@type/db.types"; // Import StoreNames enum
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Copilot store implementation using IndexedDB via DBStore.
- * Stores chat messages.
+ * Stores chat sessions. Keyed by chat ID.
  */
-class CopilotStore extends DBStore<CopilotMessage> {
+class CopilotStore extends DBStore<Chat> {
     constructor() {
+        // Pass the enum member for the store name
         super(StoreNames.COPILOT);
     }
 
-    // --- Chat Messages ---
+    // --- Chat Sessions ---
 
     /**
-     * Adds a new message to the store.
-     * Uses message.id as the key.
-     * @param message The CopilotMessage object to add.
+     * Creates or updates a chat session in the store.
+     * @param chat The Chat object to save.
      */
-    async addMessage(message: CopilotMessage): Promise<void> {
-        if (!message.id) {
-            console.error("Message must have an ID to be added to the store.");
-            return;
-        }
-        // Use put from DBStore which handles add/update and uses keyPath: 'id'
-        await this.put(message);
+    async saveChat(chat: Chat): Promise<void> {
+        chat.createdOn = chat.createdOn || Date.now(); // Set startedOn if not already set
+        chat.lastModified = Date.now();
+        await this.put(chat);
     }
 
     /**
-     * Updates an existing message in the store.
-     * Uses message.id as the key.
-     * @param message The CopilotMessage object with updated data.
+     * Retrieves a specific chat session by its ID.
+     * @param id The ID of the chat to retrieve.
      */
-    async updateMessage(message: CopilotMessage): Promise<void> {
-        if (!message.id) {
-            console.error("Message must have an ID to be updated in the store.");
-            return;
-        }
-        // Use put from DBStore which handles add/update and uses keyPath: 'id'
-        await this.put(message);
+    async getChatById(id: string): Promise<Chat | undefined> {
+        return await this.get(id);
     }
 
     /**
-     * Retrieves a specific message by its ID.
-     * @param id The ID of the message to retrieve.
+     * Retrieves all chat sessions, sorted by lastModified descending.
      */
-    async getMessageById(id: string): Promise<CopilotMessage | undefined> {
-        // Use get from DBStore
-        return this.get(id);
+    async listChats(): Promise<Chat[]> {
+        const allChats = await this.getAll();
+        // Sort by last modified time, newest first
+        return allChats.sort((a, b) => b.lastModified - a.lastModified);
     }
 
     /**
-     * Retrieves messages with pagination, sorted by timestamp descending (newest first).
-     * Uses the 'by-timestamp' index for efficiency.
-     * @param limit The maximum number of messages to retrieve.
-     * @param offset The number of messages to skip (for pagination).
+     * Deletes a chat session by its ID.
+     * @param id The ID of the chat to delete.
      */
-    async getMessagesPaginated(limit: number, offset: number): Promise<CopilotMessage[]> {
-        const db = await getDb();
-        // Explicitly use the specific store name for better type inference
-        const tx = db.transaction(StoreNames.COPILOT, 'readonly');
-        const store = tx.objectStore(StoreNames.COPILOT);
-        const index = store.index('by-timestamp'); // Now TS should know this index exists
-        const messages: CopilotMessage[] = [];
-        let cursor = await index.openCursor(null, 'prev'); // Open cursor to iterate newest first
-
-        if (offset > 0 && cursor) {
-            // Advance the cursor by the offset amount.
-            await cursor.advance(offset);
-            // Re-fetch cursor after advancing, as advance doesn't return the new cursor state directly
-            // and might invalidate the original cursor variable if it goes past the end.
-            // A simple way is to just re-open the cursor starting from where advance left off,
-            // but let's try continuing first. If advance moves the cursor, continue should work.
-            // If advance goes past the end, the loop condition `while(cursor...)` handles it.
-        }
-
-        let count = 0;
-        while (cursor && count < limit) {
-            messages.push(cursor.value);
-            count++;
-            cursor = await cursor.continue();
-        }
-
-        await tx.done;
-        return messages; // Messages will be newest first due to 'prev' cursor
-    }
-
-    /**
-     * Deletes a message by its ID.
-     * @param id The ID of the message to delete.
-     */
-    async deleteMessage(id: string): Promise<void> {
-        // Use delete from DBStore
+    async deleteChat(id: string): Promise<void> {
         await this.delete(id);
     }
 
     /**
-     * Clears all messages from the store. Be cautious using this!
+     * Adds a new message to a specific chat session.
+     * @param chatId The ID of the chat to add the message to.
+     * @param message The CopilotMessage object to add.
      */
-    async clearAllMessages(): Promise<void> {
-        // Use clear from DBStore
-        await this.clear();
-        // Access protected storeName
-        console.log(`Cleared all messages from ${this.storeName}.`);
+    async addMessageToChat(chatId: string, message: CopilotMessage): Promise<void> {
+        const chat = await this.getChatById(chatId);
+        if (chat) {
+            // Avoid adding duplicate message IDs if possible (e.g., rapid updates)
+            if (!chat.messages.some(m => m.id === message.id)) {
+                chat.messages.push(message);
+            } else {
+                // If message exists, update it instead (handles race conditions)
+                const existingIndex = chat.messages.findIndex(m => m.id === message.id);
+                chat.messages[existingIndex] = message;
+            }
+            chat.lastModified = message.timestamp; // Update lastModified to message time
+            await this.put(chat); // Use put to save the whole chat object
+        } else {
+            console.error(`Chat with ID ${chatId} not found. Cannot add message.`);
+            // Optionally throw an error
+        }
+    }
+
+    /**
+     * Updates an existing message within a specific chat session.
+     * Useful for updating streaming messages (isLoading, final content, error).
+     * @param chatId The ID of the chat containing the message.
+     * @param messageUpdate The partial or full CopilotMessage object with updated data.
+     */
+    async updateMessageInChat(chatId: string, messageUpdate: Partial<CopilotMessage> & { id: string }): Promise<void> {
+        const chat = await this.getChatById(chatId);
+        if (chat) {
+            const messageIndex = chat.messages.findIndex(m => m.id === messageUpdate.id);
+            if (messageIndex !== -1) {
+                // Merge the update with the existing message
+                chat.messages[messageIndex] = { ...chat.messages[messageIndex], ...messageUpdate };
+                // Only update lastModified if this message's timestamp is newer
+                const updatedTimestamp = messageUpdate.timestamp ?? chat.messages[messageIndex].timestamp;
+                if (updatedTimestamp > chat.lastModified) {
+                    chat.lastModified = updatedTimestamp;
+                }
+                await this.put(chat); // Use put to save the whole chat object
+            } else {
+                console.warn(`Message with ID ${messageUpdate.id} not found in chat ${chatId}. Cannot update.`);
+                // If it wasn't found, maybe add it? Or log error? Adding might be safer if creation failed previously.
+                // Consider adding the full message if it's intended to be created here.
+                // await this.addMessageToChat(chatId, messageUpdate as CopilotMessage); // Requires type assertion
+            }
+        } else {
+            console.error(`Chat with ID ${chatId} not found. Cannot update message.`);
+            // Optionally throw an error
+        }
     }
 }
 
-// Create and export a singleton instance
+// Export a singleton instance
 const copilotStore = new CopilotStore();
 export default copilotStore;
-
-// Export named functions for easier use in context/hooks
-export const addMessage = (message: CopilotMessage) => copilotStore.addMessage(message);
-export const updateMessage = (message: CopilotMessage) => copilotStore.updateMessage(message);
-// Use the paginated version
-export const getMessages = (limit: number, offset: number) => copilotStore.getMessagesPaginated(limit, offset);
-export const getMessageById = (id: string) => copilotStore.getMessageById(id);
-export const deleteMessage = (id: string) => copilotStore.deleteMessage(id);
-export const clearAllMessages = () => copilotStore.clearAllMessages();

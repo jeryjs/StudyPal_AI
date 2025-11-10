@@ -39,18 +39,19 @@ import {
     useMediaQuery,
     useTheme
 } from '@mui/material';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import useCloudStorage from '@hooks/useCloudStorage';
 import { useMaterials } from '@hooks/useMaterials';
 import { Chapter, Material, MaterialType, SyncStatus } from '@type/db.types';
 import { formatBytes } from '@utils/utils';
+import { useCopilot } from '@hooks/useCopilot';
 
 // --- Styled Components ---
 
 // Keep MaterialsContainer, adjust padding/minHeight if needed
 const MaterialsContainer = styled(Paper)(({ theme }) => ({
-    borderRadius: theme.shape.borderRadius * 1.5,
+    borderRadius: typeof theme.shape.borderRadius === 'number' ? theme.shape.borderRadius * 1.5 : theme.shape.borderRadius,
     backgroundColor: alpha(theme.palette.background.paper, 0.6),
     height: '100%',
     minHeight: '360px',
@@ -71,7 +72,7 @@ const OverlayDropZone = styled(Box, {
     bottom: 0,
     backgroundColor: alpha(theme.palette.background.default, 0.85), // Semi-transparent background
     border: `3px dashed ${theme.palette.primary.main}`,
-    borderRadius: theme.shape.borderRadius * 1.5, // Match container
+    borderRadius: typeof theme.shape.borderRadius === 'number' ? theme.shape.borderRadius * 1.5 : theme.shape.borderRadius, // Match container
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -229,6 +230,9 @@ const MaterialsPanel: React.FC<MaterialsPanelProps> = ({
     // Get hooks for content fetching
     const { materials, loading, error, getMaterialContent } = useMaterials(selectedChapter?.id);
     const cloud = useCloudStorage();
+
+    const { setPageContext } = useCopilot();
+    useEffect(() => setPageContext({ page: 'materials', activeItem: { id: selectedChapter?.id || '', type: 'chapter' }, description: `Viewing chapter: ${selectedChapter?.name} from subjectId: ${selectedChapter?.subjectId}` }), [setPageContext, selectedChapter]);
 
     const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, material: Material) => {
         event.stopPropagation(); // Prevent card click

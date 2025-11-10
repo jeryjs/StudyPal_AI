@@ -5,6 +5,7 @@
  * @returns {string} The base URL for the application.
  */
 export const baseAppUrl = (() => {
+    return "/StudyPal_AI"
     const isGHPages = (typeof process !== 'undefined' && process.env.GH_DEPLOY) || (typeof window !== 'undefined' && window.location.hostname.includes("github.io"))
     // For GitHub Pages
     if (isGHPages) {

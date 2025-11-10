@@ -1,36 +1,88 @@
-import React, { useState } from 'react';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
+    alpha,
     Box,
-    Typography,
-    Grid,
+    Button,
     Card,
     CardActionArea,
     CardContent,
-    Button,
-    alpha,
-    Theme,
+    CircularProgress,
     Collapse,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogContentText,
+    DialogTitle,
     Divider,
-    useTheme
+    Grid,
+    TextField,
+    Typography
 } from '@mui/material';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import React, { useState } from 'react';
 
 import { availableThemes, useThemeContext } from '@contexts/ThemeContext';
+import { useCopilot } from '@hooks/useCopilot';
+import { SettingKeys } from '@store/settingsStore';
+import { CopilotModel } from '@type/copilot.types';
 
 const ThemeSelector: React.FC = () => {
     const { theme, setTheme, currentThemeID } = useThemeContext();
+    const { sendMessage, isLoading: isCopilotLoading } = useCopilot();
     const [isThemesExpanded, setIsThemesExpanded] = useState(false);
+    const [isCreateThemeDialogOpen, setIsCreateThemeDialogOpen] = useState(false);
+    const [themeDescription, setThemeDescription] = useState('');
+    const [isGeneratingTheme, setIsGeneratingTheme] = useState(false);
 
     const handleThemeSelect = (id: string) => {
         setTheme(id);
     };
 
-    const handleCreateTheme = () => {
-        // TODO: Implement custom theme creation UI
-        alert('Theme creator coming soon!');
+    // Open the theme creation dialog
+    const handleOpenCreateThemeDialog = () => {
+        setThemeDescription('');
+        setIsGeneratingTheme(false);
+        setIsCreateThemeDialogOpen(true);
     };
+
+    // Close the theme creation dialog
+    const handleCloseDialog = () => {
+        if (isGeneratingTheme) return;
+        setIsCreateThemeDialogOpen(false);
+    };
+
+    // Submit the theme description to Copilot
+    const handleSubmitThemeRequest = async () => {
+        if (!themeDescription.trim()) return;
+        setIsGeneratingTheme(true);
+
+        const prompt = `
+            Please generate a new custom theme based on the following description: ["${themeDescription}"].
+            Feel free to reference existing themes if mentioned (e.g., "like wellness-dark but with red accents").
+            The generated theme object must conform to the AppTheme structure (check get_available_themes tool for structure).
+            Once generated, use the 'set_settings' tool to:
+            1. Save the new theme object under the key '${SettingKeys.CUSTOM_THEME}'. The value must be the JSON stringified theme object.
+            2. Set the active theme by saving the string 'custom' under the key '${SettingKeys.ACTIVE_THEME}'. The value must be the JSON stringified string 'custom'.
+            Ensure the 'id' property of the generated theme object is exactly 'custom'.
+            Call both tools in a single response immediately without requiring user confirmation.
+        `;
+
+        try {
+            // Send the prompt to the Copilot context
+            await sendMessage(prompt, { model: CopilotModel.LITE });
+            // Theme application is handled by the listener in ThemeContext
+            // We can close the dialog optimistically or wait for confirmation if needed
+            handleCloseDialog();
+        } catch (error) {
+            console.error("Error sending theme generation request:", error);
+            // Optionally show an error message to the user
+            alert("Failed to generate theme. Please check the console for details.");
+        } finally {
+            setIsGeneratingTheme(false); // Ensure loading state is reset
+        }
+    };
+
 
     // Determine based on max items per row (e.g., 6 for md: 3)
     const itemsInFirstRow = 6;
@@ -56,6 +108,11 @@ const ThemeSelector: React.FC = () => {
                 }}>
                     <Grid container spacing={3} sx={{ mb: showExpandButton ? 0 : 4 }}> {/* Grid container */}
                         {availableThemes.map((appTheme) => {
+                            // Ensure appTheme is valid before rendering
+                            if (!appTheme || !appTheme.id || !appTheme.name || !appTheme.palette) {
+                                console.warn("Skipping invalid theme object:", appTheme);
+                                return null;
+                            }
                             const isSelected = currentThemeID === appTheme.id;
                             return (
                                 <Grid key={appTheme.id} size={{ xs: 6, sm: 4, md: 3 }}>
@@ -118,15 +175,50 @@ const ThemeSelector: React.FC = () => {
                 )}
             </Box>
 
-            {/* Create Theme Button - Adjust margin based on expand button */}
+            {/* Create Theme Button */}
             <Box sx={{ mt: showExpandButton ? 3 : 4 }}>
                 <Typography variant="body1" gutterBottom sx={{ color: 'text.secondary', mb: 1 }}>
                     Customize further?
                 </Typography>
-                <Button variant="outlined" onClick={handleCreateTheme}>
-                    Create Your Own Theme
+                <Button variant="outlined" onClick={handleOpenCreateThemeDialog} disabled={isCopilotLoading}>
+                    {isCopilotLoading ? 'Processing...' : 'Create Your Own Theme'}
                 </Button>
             </Box>
+
+            {/* Theme Creation Dialog */}
+            <Dialog open={isCreateThemeDialogOpen} onClose={handleCloseDialog} fullWidth maxWidth="sm" disableEscapeKeyDown={isGeneratingTheme}>
+                <DialogTitle>Create Custom Theme</DialogTitle>
+                <DialogContent>
+                    <DialogContentText sx={{ mb: 2 }}>
+                        Describe the kind of theme you'd like (e.g., "a dark theme with orange accents", "a light theme similar to 'Wellness Light' but with green primary color"). The AI will generate it for you.
+                    </DialogContentText>
+                    <TextField
+                        autoFocus
+                        margin="dense"
+                        id="theme-description"
+                        label="Theme Description"
+                        type="text"
+                        fullWidth
+                        variant="outlined"
+                        multiline
+                        rows={3}
+                        value={themeDescription}
+                        onChange={(e) => setThemeDescription(e.target.value)}
+                        disabled={isGeneratingTheme}
+                    />
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={handleCloseDialog} disabled={isGeneratingTheme}>Cancel</Button>
+                    <Button
+                        onClick={handleSubmitThemeRequest}
+                        variant="contained"
+                        disabled={isGeneratingTheme || !themeDescription.trim()}
+                        startIcon={isGeneratingTheme ? <CircularProgress size={20} color="inherit" /> : null}
+                    >
+                        {isGeneratingTheme ? 'Generating...' : 'Generate Theme'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };

@@ -165,7 +165,7 @@ const singleton = {
         parentFolderId: string,
         mimeType: string = 'application/octet-stream'
     ): Promise<string> => {
-        console.log(`Uploading file '${fileName}' (Type: ${mimeType}, Size: ${fileBlob.size}) to folder ${parentFolderId}...`);
+        if (fileName !== "studypal.db.json") console.log(`Uploading file '${fileName}' (Type: ${mimeType}, Size: ${fileBlob.size}) to folder ${parentFolderId}...`);
         try {
             // Check if file already exists
             const listResponse = await singleton.driveApiAction(() =>

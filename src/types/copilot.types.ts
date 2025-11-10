@@ -3,10 +3,10 @@ import { Material } from "./db.types";
 
 // Define the available Copilot models
 export enum CopilotModel {
-    REGULAR = 'gemini-2.0-flash-exp',   // use exp since flash is often overloaded
-    LITE = 'gemini-2.0-flash-lite-preview-02-05',   // less often overloaded
-    REASON = 'gemini-2.5-flash-preview-04-17',
-    LARGE = 'gemini-2.5-pro-exp-03-25',
+    REGULAR = 'gemini-2.5-flash',   // use exp since flash is often overloaded
+    LITE = 'gemini-2.5-flash-lite',   // less often overloaded
+    REASON = 'gemini-2.5-flash',
+    LARGE = 'gemini-2.5-pro',
 }
 
 export type CopilotRole = "user" | "model" | "system" | "tool";

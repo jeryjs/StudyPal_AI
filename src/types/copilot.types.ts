@@ -50,6 +50,7 @@ export interface Chat {
     createdOn: number; // Timestamp of creation or first message
     lastModified: number; // Timestamp of the last message or modification
     suggestions?: CopilotSuggestion[]; // Optional follow-up suggestions generated with the LITE model
+    isProcessing?: boolean; // Indicates if the chat is currently processing (fetching context, waiting for AI)
 }
 
 // Represents a tool that the AI can call

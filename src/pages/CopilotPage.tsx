@@ -5,43 +5,36 @@
  * - Displays chat messages with markdown rendering and syntax highlighting
  * - Shows tool execution progress and results
  * - Includes chat history sidebar with export functionality
- * - Mobile-responsive with drawer for history on small screens
  * - Auto-scroll with manual scroll override
  * - Visual distinction between user messages, AI responses, and tool executions
  */
 
+import ChatListSidebar from '@components/copilot/ChatListSidebar'; // Import the new sidebar
+import { useCopilot } from '@hooks/useCopilot';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined';
 import BuildIcon from '@mui/icons-material/Build';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import HistoryIcon from '@mui/icons-material/History';
 import {
     Alert,
     alpha,
     Avatar,
     Box,
     CircularProgress,
-    Drawer,
-    IconButton,
     Paper,
-    Tooltip,
     Typography,
     useTheme,
-    Chip,
-    useMediaQuery
+    Chip
 } from '@mui/material';
-import React, { useEffect, useRef, useState } from 'react';
-import { useCopilot } from '@hooks/useCopilot';
 import { CopilotMessage } from '@type/copilot.types';
+import React, { useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github-dark.css'; // Import a code highlight style
-import ChatHistorySidebar from '@components/copilot/ChatHistorySidebar';
 
 const CopilotPage: React.FC = () => {
     const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const {
         activeChat,
         isLoading,
@@ -50,7 +43,6 @@ const CopilotPage: React.FC = () => {
 
     const chatListRef = useRef<HTMLDivElement>(null);
     const scrollLockRef = useRef(true);
-    const [historyOpen, setHistoryOpen] = useState(!isMobile); // Open by default on desktop
 
     const messages = activeChat?.messages || [];
 
@@ -213,179 +205,147 @@ const CopilotPage: React.FC = () => {
         alignItems: 'flex-start',
     });
 
-    // Filter messages to display - show all roles for transparency
+    // Filter messages to display only user and model roles
+    // Tool messages are not typically displayed directly in the main chat flow, but we show them for debugging
     const displayMessages = messages;
 
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'row', height: '100%', width: '100%', position: 'relative' }}>
-            {/* History Toggle Button (Mobile) */}
-            {isMobile && (
-                <Tooltip title="Chat History" placement="left">
-                    <IconButton
-                        onClick={() => setHistoryOpen(true)}
-                        sx={{
-                            position: 'absolute',
-                            top: 16,
-                            right: 16,
-                            zIndex: 10,
-                            bgcolor: alpha(theme.palette.background.paper, 0.9),
-                            '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.1) }
-                        }}
-                    >
-                        <HistoryIcon />
-                    </IconButton>
-                </Tooltip>
-            )}
+        // Use flex display for the overall page layout
+        <Box sx={{ display: 'flex', height: '100%', width: '100%' }}>
+            {/* Render the Chat List Sidebar */}
+            <ChatListSidebar />
 
-            {/* Chat History Sidebar */}
-            {!isMobile ? (
-                <Paper
+            {/* Main Chat Content Area */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', flexGrow: 1, height: '100%', width: 'calc(100% - 280px)' /* Adjust width based on sidebar */ }}>
+                <Box
+                    ref={chatListRef}
+                    onScroll={handleScroll}
                     sx={{
-                        width: 280,
-                        height: '100%',
-                        borderRight: 1,
-                        borderColor: 'divider',
-                        display: historyOpen ? 'block' : 'none'
+                        flexGrow: 1,
+                        p: { xs: 1, md: 2 },
+                        display: 'flex',
+                        flexDirection: 'column',
+                        width: '100%',
+                        maxWidth: 900,
+                        mx: 'auto',
+                        pt: { xs: '70px', md: '20px' }, // Keep padding top for Chatbar overlap
+                        overflowY: 'auto', // Ensure chat area scrolls independently
+                        height: '100%', // Make sure it takes available height
                     }}
                 >
-                    <ChatHistorySidebar />
-                </Paper>
-            ) : (
-                <Drawer
-                    anchor="right"
-                    open={historyOpen}
-                    onClose={() => setHistoryOpen(false)}
-                    sx={{
-                        '& .MuiDrawer-paper': {
-                            width: '80%',
-                            maxWidth: 320
-                        }
-                    }}
-                >
-                    <ChatHistorySidebar onClose={() => setHistoryOpen(false)} />
-                </Drawer>
-            )}
 
-            {/* Main Chat Area */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', flex: 1 }}>
-            <Box
-                ref={chatListRef}
-                onScroll={handleScroll}
-                sx={{
-                    flexGrow: 1,
-                    p: { xs: 1, md: 2 },
-                    display: 'flex',
-                    flexDirection: 'column',
-                    width: '100%',
-                    maxWidth: 900,
-                    mx: 'auto',
-                    pt: { xs: '70px', md: '20px' },
-                }}
-            >
+                    {/* Welcome message if no messages and no active chat */}
+                    {!activeChat && !isLoading && (
+                        <Box sx={{ textAlign: 'center', my: 'auto', p: 3, color: 'text.secondary' }}>
+                            <SmartToyOutlinedIcon sx={{ fontSize: 60, mb: 2 }} />
+                            <Typography variant="h6">Start a new chat</Typography>
+                            <Typography variant="body1">Click the '+' button or start typing below.</Typography>
+                        </Box>
+                    )}
 
-                {/* Welcome message if no messages */}
-                {displayMessages.length === 0 && !isLoading && (
-                    <Box sx={{ textAlign: 'center', my: 'auto', p: 3, color: 'text.secondary' }}>
-                        <SmartToyOutlinedIcon sx={{ fontSize: 60, mb: 2 }} />
-                        <Typography variant="h6">How can I help you today?</Typography>
-                        <Typography variant="body1">Ask me anything about your study materials!</Typography>
-                    </Box>
-                )}
+                    {/* Welcome message if active chat has no messages */}
+                    {activeChat && displayMessages.length === 0 && !isLoading && (
+                        <Box sx={{ textAlign: 'center', my: 'auto', p: 3, color: 'text.secondary' }}>
+                            <SmartToyOutlinedIcon sx={{ fontSize: 60, mb: 2 }} />
+                            <Typography variant="h6">How can I help you today?</Typography>
+                            <Typography variant="body1">Ask me anything about your study materials!</Typography>
+                        </Box>
+                    )}
 
-                {displayMessages.map((message) => {
-                    // Determine if this message should be shown (skip empty model function calls that will be followed by tool response)
-                    const shouldShow = message.role === 'user' || 
-                                      message.role === 'tool' ||
-                                      (message.role === 'model' && message.parts.some(p => 'text' in p && p.text?.trim())) ||
-                                      (message.role === 'model' && message.parts.some(p => 'functionCall' in p));
-                    
-                    if (!shouldShow) return null;
-                    
-                    const isUser = message.role === 'user';
-                    const isTool = message.role === 'tool';
-                    
-                    return (
-                        <Box
-                            key={message.id}
-                            sx={{
-                                display: 'flex',
-                                justifyContent: isUser ? 'flex-end' : 'flex-start',
-                                mb: 2,
-                                width: '100%',
-                            }}
-                        >
-                            <Paper sx={{ 
-                                ...glassChatBubble(isUser ? 'user' : 'model'), 
-                                flexDirection: isUser ? 'row-reverse' : 'row',
-                                opacity: isTool ? 0.85 : 1 // Slightly fade tool messages
-                            }}>
-                                <Avatar sx={{
-                                    width: 32,
-                                    height: 32,
-                                    ml: isUser ? 1.5 : 0,
-                                    mr: isUser ? 0 : 1.5,
-                                    bgcolor: isUser 
-                                        ? alpha(theme.palette.primary.main, 0.7) 
-                                        : isTool
-                                            ? alpha(theme.palette.success.main, 0.7)
-                                            : theme.palette.text.secondary,
-                                    color: isUser ? theme.palette.primary.contrastText : theme.palette.background.default,
-                                    fontSize: '1rem'
+                    {activeChat && displayMessages.map((message) => {
+                        // Determine if this message should be shown
+                        const shouldShow = message.role === 'user' || 
+                                          message.role === 'tool' ||
+                                          (message.role === 'model' && message.parts.some(p => 'text' in p && p.text?.trim())) ||
+                                          (message.role === 'model' && message.parts.some(p => 'functionCall' in p));
+                        
+                        if (!shouldShow) return null;
+                        
+                        const isUser = message.role === 'user';
+                        const isTool = message.role === 'tool';
+                        
+                        return (
+                            <Box
+                                key={message.id}
+                                sx={{
+                                    display: 'flex',
+                                    justifyContent: isUser ? 'flex-end' : 'flex-start',
+                                    mb: 2,
+                                    width: '100%',
+                                }}
+                            >
+                                <Paper sx={{ 
+                                    ...glassChatBubble(isUser ? 'user' : 'model'), 
+                                    flexDirection: isUser ? 'row-reverse' : 'row',
+                                    opacity: isTool ? 0.85 : 1 // Slightly fade tool messages
                                 }}>
-                                    {isUser 
-                                        ? <AccountCircleOutlinedIcon fontSize="small" /> 
-                                        : isTool
-                                            ? <BuildIcon fontSize="small" />
-                                            : <SmartToyOutlinedIcon fontSize="small" />}
-                                </Avatar>
-                                <Box sx={{ overflow: 'hidden', flex: 1 }}>
-                                    <Box sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                        {renderMessageContent(message)}
-                                        {/* Display loading indicator within the bubble if message is loading */}
-                                        {message.isLoading && <CircularProgress size={16} sx={{ ml: 1, verticalAlign: 'middle' }} />}
-                                        {/* Display error within the bubble */}
-                                        {message.error && <Alert severity="error" sx={{ mt: 1, fontSize: '0.8rem', p: '2px 8px' }}>{message.error}</Alert>}
+                                    <Avatar sx={{
+                                        width: 32,
+                                        height: 32,
+                                        ml: isUser ? 1.5 : 0,
+                                        mr: isUser ? 0 : 1.5,
+                                        bgcolor: isUser 
+                                            ? alpha(theme.palette.primary.main, 0.7) 
+                                            : isTool
+                                                ? alpha(theme.palette.success.main, 0.7)
+                                                : theme.palette.text.secondary,
+                                        color: isUser ? theme.palette.primary.contrastText : theme.palette.background.default,
+                                        fontSize: '1rem'
+                                    }}>
+                                        {isUser 
+                                            ? <AccountCircleOutlinedIcon fontSize="small" /> 
+                                            : isTool
+                                                ? <BuildIcon fontSize="small" />
+                                                : <SmartToyOutlinedIcon fontSize="small" />}
+                                    </Avatar>
+                                    <Box sx={{ overflow: 'hidden', flex: 1 }}>
+                                        <Box sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                            {renderMessageContent(message)}
+                                            {/* Display loading indicator within the bubble if chat is processing */}
+                                            {activeChat.isProcessing && <CircularProgress size={16} sx={{ ml: 1, verticalAlign: 'middle' }} />}
+                                            {/* Display error within the bubble */}
+                                            {message.error && <Alert severity="error" sx={{ mt: 1, fontSize: '0.8rem', p: '2px 8px' }}>{message.error}</Alert>}
+                                        </Box>
+                                        {/* Display model used */}
+                                        {message.modelUsed && message.role === 'model' && (
+                                            <Chip 
+                                                label={message.modelUsed.split('/').pop()} 
+                                                size="small"
+                                                sx={{ 
+                                                    mt: 0.5, 
+                                                    height: 20, 
+                                                    fontSize: '0.65rem',
+                                                    bgcolor: alpha(theme.palette.info.main, 0.1),
+                                                    color: theme.palette.text.secondary
+                                                }}
+                                            />
+                                        )}
                                     </Box>
-                                    {/* Display model used */}
-                                    {message.modelUsed && message.role === 'model' && (
-                                        <Chip 
-                                            label={message.modelUsed.split('/').pop()} 
-                                            size="small"
-                                            sx={{ 
-                                                mt: 0.5, 
-                                                height: 20, 
-                                                fontSize: '0.65rem',
-                                                bgcolor: alpha(theme.palette.info.main, 0.1),
-                                                color: theme.palette.text.secondary
-                                            }}
-                                        />
-                                    )}
-                                </Box>
+                                </Paper>
+                            </Box>
+                        );
+                    })}
+
+                    {/* Show loading indicator after user message if waiting for first response chunk */}
+                    {isLoading && activeChat && displayMessages.length > 0 && displayMessages[displayMessages.length - 1].role === 'user' && (
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2, width: '100%' }}>
+                            <Paper sx={{ ...glassChatBubble('model'), flexDirection: 'row', alignItems: 'center', p: 1.5 }}>
+                                <Avatar sx={{ width: 32, height: 32, mr: 1.5, bgcolor: theme.palette.text.secondary, color: theme.palette.background.default, fontSize: '1rem' }}>
+                                    <SmartToyOutlinedIcon fontSize="small" />
+                                </Avatar>
+                                <CircularProgress size={20} sx={{ mr: 1 }} />
+                                <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
+                                    Thinking...
+                                </Typography>
                             </Paper>
                         </Box>
-                    );
-                })}
+                    )}
 
-                {/* Show loading indicator after user message if waiting for first response chunk */}
-                {isLoading && displayMessages.length > 0 && displayMessages[displayMessages.length - 1].role === 'user' && (
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-start', mb: 2, width: '100%' }}>
-                        <Paper sx={{ ...glassChatBubble('model'), flexDirection: 'row', alignItems: 'center', p: 1.5 }}>
-                            <Avatar sx={{ width: 32, height: 32, mr: 1.5, bgcolor: theme.palette.text.secondary, color: theme.palette.background.default, fontSize: '1rem' }}>
-                                <SmartToyOutlinedIcon fontSize="small" />
-                            </Avatar>
-                            <CircularProgress size={20} sx={{ mr: 1 }} />
-                            <Typography variant="body2" sx={{ fontStyle: 'italic', color: 'text.secondary' }}>
-                                Thinking...
-                            </Typography>
-                        </Paper>
-                    </Box>
-                )}
-
-                {error && (
-                    <Alert severity="error" sx={{ m: 1, flexShrink: 0 }}>{error}</Alert>
-                )}
+                    {error && (
+                        <Alert severity="error" sx={{ m: 1, flexShrink: 0 }}>{error}</Alert>
+                    )}
+                </Box>
             </Box>
-        </Box>
         </Box>
     );
 };

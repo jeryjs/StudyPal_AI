@@ -12,7 +12,7 @@ createRoot(document.getElementById('root')!).render(
   <ThemeContextProvider>
     <SyncContextProvider>
       <CopilotProvider>
-        <BrowserRouter basename={baseAppUrl}> {/* Set base URL for gh-pages */}
+        <BrowserRouter basename={"/StudyPal_AI"}> {/* Set base URL for gh-pages */}
           <App />
         </BrowserRouter>
       </CopilotProvider>
